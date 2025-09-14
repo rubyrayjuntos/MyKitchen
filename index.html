@@ -1,0 +1,1856 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kitchen Kontrol Digital Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/heroicons/2.1.3/24/outline/styles.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #111827; /* bg-gray-900 */
+            color: #d1d5db; /* text-gray-300 */
+            background-image: radial-gradient(circle at top left, rgba(235, 104, 65, 0.1), transparent 30%), radial-gradient(circle at bottom right, rgba(0, 160, 176, 0.1), transparent 40%);
+        }
+        .card {
+            background-color: rgba(31, 41, 55, 0.5); /* bg-gray-800 with opacity */
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease-in-out;
+        }
+        .nav-button {
+            @apply flex flex-col items-center justify-center p-2 text-center text-gray-400 rounded-lg hover:text-white transition-colors duration-200;
+        }
+        .nav-button.active {
+            color: #EB6841;
+        }
+        .nav-button.active::after {
+            content: '';
+            display: block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background-color: #EB6841;
+            margin-top: 2px;
+        }
+        .form-input {
+            @apply w-full p-2 border bg-gray-700 border-gray-600 text-gray-200 rounded-md focus:ring-2 focus:ring-[#00A0B0] focus:border-[#00A0B0] transition placeholder:text-gray-400;
+        }
+        .btn-primary {
+            @apply bg-gradient-to-r from-[#CC333F] to-[#d55f67] text-white font-bold py-2 px-4 rounded-lg hover:scale-105 active:scale-100 transition-transform duration-200 w-full shadow-lg shadow-red-900/30;
+        }
+        .btn-secondary {
+            @apply bg-gradient-to-r from-[#00A0B0] to-[#00c2d7] text-white font-bold py-2 px-4 rounded-lg hover:scale-105 active:scale-100 transition-transform duration-200 w-full shadow-lg shadow-cyan-900/30;
+        }
+        .view {
+            display: none;
+        }
+        .view.active {
+            display: block;
+        }
+        .task-checkbox:checked + label:before {
+            content: '✓';
+            background-color: #00A0B0;
+            color: white;
+            text-align: center;
+            line-height: 1.25rem;
+            border-color: #00A0B0;
+        }
+        .task-checkbox + label:before {
+            content: '';
+            display: inline-block;
+            width: 1.25rem;
+            height: 1.25rem;
+            border: 2px solid #4b5563; /* border-gray-600 */
+            border-radius: 0.25rem;
+            margin-right: 0.75rem;
+            vertical-align: middle;
+            background-color: #374151; /* bg-gray-700 */
+        }
+        .task-checkbox {
+            display: none;
+        }
+        .translate-btn {
+             transition: transform 0.2s;
+        }
+        .translate-btn:hover {
+            transform: scale(1.1);
+        }
+        .translate-btn.loading {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        #loading-overlay {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(17, 24, 39, 0.8);
+            backdrop-filter: blur(8px);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.5rem;
+        }
+        .training-table { @apply w-full text-left border-collapse; }
+        .training-table th, .training-table td { @apply p-2 border-b border-gray-700; }
+        .training-table th { @apply font-bold text-white; }
+        .training-table td { @apply text-gray-300; }
+
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #printable-content, #printable-content * {
+                visibility: visible;
+            }
+            #printable-content {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gray-900 text-gray-300">
+    <div id="loading-overlay">
+        <p>Connecting to Kitchen Kontrol Hub...</p>
+    </div>
+
+    <div id="app-container" class="max-w-4xl mx-auto pb-24 opacity-0 transition-opacity duration-500">
+        <!-- Header -->
+        <header class="p-4 text-center">
+            <h1 class="text-4xl sm:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-[#EB6841] to-[#EDC951]">Kitchen Kontrol Hub</h1>
+            <p id="current-time" class="text-gray-400 mt-1"></p>
+            <p id="site-description" class="text-gray-400 mt-2 max-w-xl mx-auto text-sm sm:text-base" data-lang-en="This digital hub streamlines all kitchen operations. Track daily assignments, manage schedules, complete log forms, and monitor compliance—all in one place." data-lang-es="Este centro digital agiliza todas las operaciones de la cocina. Realice un seguimiento de las asignaciones diarias, administre horarios, complete formularios de registro y supervise el cumplimiento, todo en un solo lugar."></p>
+        </header>
+
+        <!-- Main Content -->
+        <main class="p-4 space-y-8">
+            <!-- Dashboard View -->
+            <div id="dashboard-view" class="view active space-y-6">
+                <div class="card p-6 relative">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-2xl font-bold text-white" data-lang-en="Today's Assignments" data-lang-es="Asignaciones de Hoy">Today's Assignments</h2>
+                        <div class="flex items-center gap-2">
+                           <button class="help-btn bg-gray-900/50 text-gray-400 hover:text-white rounded-full p-2 transition" data-help-section="dashboard">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.546-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            </button>
+                            <button id="edit-assignments-btn" class="bg-gray-900/50 text-gray-400 hover:text-white rounded-full p-2 transition">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z"></path></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="assignments-grid" class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center"></div>
+                </div>
+                <div class="card p-6 relative">
+                     <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-2xl font-bold text-white" data-lang-en="Daily Schedule" data-lang-es="Horario del Día">Daily Schedule</h2>
+                        <button id="edit-schedule-btn" class="bg-gray-900/50 text-gray-400 hover:text-white rounded-full p-2 transition">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z"></path></svg>
+                        </button>
+                    </div>
+                    <ul id="schedule-list" class="space-y-3"></ul>
+                </div>
+                <div id="time-off-card" class="card p-6 relative">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-2xl font-bold text-white" data-lang-en="Time Off Forecast" data-lang-es="Pronóstico de Tiempo Libre">Time Off Forecast</h2>
+                        <button id="edit-time-off-btn" class="bg-gray-900/50 text-gray-400 hover:text-white rounded-full p-2 transition">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z"></path></svg>
+                        </button>
+                    </div>
+                    <div id="time-off-list" class="space-y-3"></div>
+                </div>
+            </div>
+
+            <!-- Forms View -->
+            <div id="forms-view" class="view space-y-6">
+                <div id="forms-card" class="card p-6 relative">
+                     <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-2xl font-bold text-white" data-lang-en="Log Forms" data-lang-es="Formularios de Registro">Log Forms</h2>
+                        <div class="flex items-center gap-2">
+                            <button class="help-btn bg-gray-900/50 text-gray-400 hover:text-white rounded-full p-2 transition" data-help-section="forms">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.546-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            </button>
+                            <button id="edit-forms-btn" class="bg-gray-900/50 text-gray-400 hover:text-white rounded-full p-2 transition">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z"></path></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="forms-container" class="space-y-6">
+                        <!-- Dynamic forms will be rendered here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cleaning View -->
+            <div id="cleaning-view" class="view">
+                 <div class="card p-6 relative">
+                     <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-2xl font-bold text-white" data-lang-en="5-Zone Closing Clean" data-lang-es="Limpieza de Cierre de 5 Zonas">5-Zone Closing Clean</h2>
+                        <div class="flex items-center gap-2">
+                            <button class="help-btn bg-gray-900/50 text-gray-400 hover:text-white rounded-full p-2 transition" data-help-section="cleaning">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.546-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            </button>
+                             <button id="edit-cleaning-btn" class="bg-gray-900/50 text-gray-400 hover:text-white rounded-full p-2 transition">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z"></path></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <p class="text-gray-400 mb-6" data-lang-en="Assignments rotate weekly to ensure fairness and a complete clean." data-lang-es="Las asignaciones rotan semanalmente para garantizar la equidad y una limpieza completa.">Assignments rotate weekly to ensure fairness and a complete clean.</p>
+                    <div id="cleaning-zone-grid" class="grid grid-cols-1 md:grid-cols-3 gap-6"></div>
+                 </div>
+            </div>
+            
+            <!-- Training View -->
+            <div id="training-view" class="view">
+                <div class="card p-6 relative">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-2xl font-bold text-white" data-lang-en="Training Materials" data-lang-es="Materiales de Capacitación">Training Materials</h2>
+                         <button class="help-btn bg-gray-900/50 text-gray-400 hover:text-white rounded-full p-2 transition" data-help-section="training">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.546-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        </button>
+                    </div>
+                    <div id="training-modules-container" class="space-y-4">
+                        <!-- Training modules will be rendered here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reports View -->
+            <div id="reports-view" class="view space-y-6">
+                 <div class="card p-6 relative">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-2xl font-bold text-white" data-lang-en="Manager Reports" data-lang-es="Informes del Gerente">Manager Reports</h2>
+                        <button class="help-btn bg-gray-900/50 text-gray-400 hover:text-white rounded-full p-2 transition" data-help-section="reports">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.546-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        </button>
+                    </div>
+                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label for="report-start-date" class="block font-medium text-gray-300" data-lang-en="Start Date" data-lang-es="Fecha de Inicio">Start Date</label>
+                            <input type="date" id="report-start-date" class="form-input w-full">
+                        </div>
+                        <div>
+                            <label for="report-end-date" class="block font-medium text-gray-300" data-lang-en="End Date" data-lang-es="Fecha Final">End Date</label>
+                            <input type="date" id="report-end-date" class="form-input w-full">
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center mb-4">
+                        <div class="flex items-center gap-2">
+                            <input type="checkbox" id="show-missing-logs-checkbox" class="h-4 w-4 rounded border-gray-600 bg-gray-700 text-[#00A0B0] focus:ring-[#00A0B0]">
+                            <label for="show-missing-logs-checkbox" data-lang-en="Show missing logs" data-lang-es="Mostrar registros faltantes">Show missing logs</label>
+                        </div>
+                        <button id="export-csv-btn" class="btn-secondary !w-auto text-sm hidden" data-lang-en="Export Missing as CSV" data-lang-es="Exportar Faltantes como CSV">Export Missing as CSV</button>
+                    </div>
+                    <div id="logs-container" class="space-y-2 mt-4 max-h-96 overflow-y-auto"></div>
+                </div>
+                <div class="card p-6">
+                    <h2 class="text-2xl font-bold mb-4 text-white" data-lang-en="Log Activity" data-lang-es="Actividad de Registro">Log Activity</h2>
+                    <div id="log-activity-grid" class="overflow-x-auto">
+                         <!-- Grid will be rendered here -->
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Modals -->
+        <div id="modals-container">
+             <!-- Training Content Modal -->
+            <div id="training-content-modal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center p-4 z-50 overflow-y-auto">
+                <div class="card w-full max-w-2xl max-h-full overflow-y-auto p-6">
+                     <div class="flex justify-between items-center mb-4 pb-3 border-b border-gray-700">
+                        <h2 id="training-modal-title" class="text-2xl font-bold text-white"></h2>
+                        <button id="training-modal-close-btn" class="text-3xl font-bold text-gray-500 hover:text-white">&times;</button>
+                    </div>
+                    <div id="training-modal-content" class="mt-4 space-y-4 text-gray-300"></div>
+                </div>
+            </div>
+
+            <!-- Edit Time Off Modal -->
+            <div id="time-off-edit-modal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center p-4 z-50 overflow-y-auto">
+                <div class="card w-full max-w-3xl max-h-full overflow-y-auto p-6">
+                    <div class="flex justify-between items-center mb-4 pb-3 border-b border-gray-700">
+                        <h2 class="text-2xl font-bold text-white" data-lang-en="Manage Time Off" data-lang-es="Gestionar Tiempo Libre">Manage Time Off</h2>
+                        <button id="time-off-edit-close-btn" class="text-3xl font-bold text-gray-500 hover:text-white">&times;</button>
+                    </div>
+                    <div class="space-y-6 mt-4">
+                        <div>
+                            <h3 class="font-bold text-lg mb-2 text-gray-200" data-lang-en="Add or Edit Request" data-lang-es="Añadir o Editar Solicitud">Add or Edit Request</h3>
+                            <form id="add-time-off-form" class="grid grid-cols-1 md:grid-cols-2 gap-4 items-start p-4 bg-gray-800/50 rounded-lg">
+                                <input type="hidden" id="time-off-id">
+                                <div>
+                                    <label for="time-off-name" class="block font-medium text-sm">Worker</label>
+                                    <select id="time-off-name" class="form-input"></select>
+                                </div>
+                                <div>
+                                    <label for="time-off-date" class="block font-medium text-sm">Date</label>
+                                    <input type="date" id="time-off-date" class="form-input">
+                                </div>
+                                <div>
+                                    <label for="time-off-reason" class="block font-medium text-sm">Reason</label>
+                                    <select id="time-off-reason" class="form-input">
+                                        <option value="Scheduled Time Off">Scheduled Time Off</option>
+                                        <option value="School Holiday">School Holiday</option>
+                                        <option value="No Show">No Show</option>
+                                    </select>
+                                </div>
+                                <div class="flex items-center gap-4 pt-6">
+                                    <div class="flex items-center">
+                                        <input type="checkbox" id="time-off-full-day" class="h-4 w-4 rounded border-gray-600 bg-gray-700 text-[#00A0B0] focus:ring-[#00A0B0]">
+                                        <label for="time-off-full-day" class="ml-2">Full Day</label>
+                                    </div>
+                                </div>
+                                <div id="time-off-range-container" class="col-span-1 md:col-span-2 grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label for="time-off-start" class="block font-medium text-sm">Start Time</label>
+                                        <input type="time" id="time-off-start" class="form-input">
+                                    </div>
+                                    <div>
+                                        <label for="time-off-end" class="block font-medium text-sm">End Time</label>
+                                        <input type="time" id="time-off-end" class="form-input">
+                                    </div>
+                                </div>
+                                <div class="col-span-1 md:col-span-2">
+                                    <button type="submit" id="time-off-submit-btn" class="btn-secondary">Add Request</button>
+                                    <button type="button" id="time-off-cancel-btn" class="bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-500 transition w-full mt-2 hidden">Cancel Edit</button>
+                                </div>
+                            </form>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-lg mb-2 text-gray-200" data-lang-en="Upcoming Requests" data-lang-es="Próximas Solicitudes">Upcoming Requests</h3>
+                            <div id="time-off-requests-list" class="space-y-2 max-h-64 overflow-y-auto"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Gemini Modal -->
+            <div id="gemini-modal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center p-4 z-50">
+                <div class="card w-full max-w-lg">
+                    <div class="flex justify-between items-center pb-3 border-b border-gray-700">
+                        <h2 id="gemini-modal-title" class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#EB6841] to-[#EDC951]">✨ Corrective Action Plan</h2>
+                        <button id="gemini-modal-close-btn" class="text-3xl font-bold text-gray-500 hover:text-white">&times;</button>
+                    </div>
+                    <div id="gemini-modal-content" class="mt-4 space-y-3 text-gray-300"></div>
+                </div>
+            </div>
+
+            <!-- Help Modal -->
+            <div id="help-modal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center p-4 z-50">
+                <div class="card w-full max-w-lg">
+                    <div class="flex justify-between items-center pb-3 border-b border-gray-700">
+                        <h2 id="help-modal-title" class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#00A0B0] to-[#00c2d7]"></h2>
+                        <button id="help-modal-close-btn" class="text-3xl font-bold text-gray-500 hover:text-white">&times;</button>
+                    </div>
+                    <div id="help-modal-content" class="mt-4 space-y-3 text-gray-300"></div>
+                </div>
+            </div>
+
+            <!-- Task Modal -->
+            <div id="task-modal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center p-4 z-50">
+                <div class="card w-full max-w-md p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 id="modal-title" class="text-2xl font-bold text-white"></h2>
+                        <button id="modal-close-btn" class="text-3xl font-bold text-gray-500 hover:text-white">&times;</button>
+                    </div>
+                    <div id="modal-content" class="space-y-2 text-gray-300"></div>
+                </div>
+            </div>
+
+            <!-- Edit Assignments Modal -->
+            <div id="edit-modal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center p-4 z-50 overflow-y-auto">
+                <div class="card w-full max-w-2xl max-h-full overflow-y-auto p-6">
+                    <div class="flex justify-between items-center mb-4 pb-3 border-b border-gray-700">
+                        <h2 class="text-2xl font-bold text-white" data-lang-en="Edit Assignments & Staff" data-lang-es="Editar Asignaciones y Personal">Edit Assignments & Staff</h2>
+                        <button id="edit-modal-close-btn" class="text-3xl font-bold text-gray-500 hover:text-white">&times;</button>
+                    </div>
+                    <div class="space-y-6 mt-4">
+                        <div>
+                            <h3 class="font-bold text-lg mb-2 text-gray-200" data-lang-en="Manage Staff" data-lang-es="Gestionar Personal">Manage Staff</h3>
+                            <ul id="staff-list" class="space-y-2 mb-2"></ul>
+                            <form id="add-staff-form" class="flex gap-2">
+                                <input type="text" id="new-staff-name" class="form-input flex-grow" placeholder="New worker name...">
+                                <button type="submit" class="btn-secondary px-4 py-2" data-lang-en="Add" data-lang-es="Añadir">Add</button>
+                            </form>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-lg mb-2 text-gray-200" data-lang-en="Manage Roles" data-lang-es="Gestionar Roles">Manage Roles</h3>
+                            <ul id="role-list" class="space-y-2 mb-2"></ul>
+                            <form id="add-role-form" class="flex gap-2">
+                                <input type="text" id="new-role-name" class="form-input flex-grow" placeholder="New position name...">
+                                <button type="submit" class="btn-secondary px-4 py-2" data-lang-en="Add" data-lang-es="Añadir">Add</button>
+                            </form>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-lg mb-2 text-gray-200" data-lang-en="Set Today's Assignments" data-lang-es="Establecer Asignaciones de Hoy">Set Today's Assignments</h3>
+                            <div id="daily-assignments-container" class="space-y-2"></div>
+                        </div>
+                    </div>
+                    <div class="flex justify-end gap-4 mt-6">
+                        <button id="edit-modal-cancel-btn" class="bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-500 transition" data-lang-en="Cancel" data-lang-es="Cancelar">Cancel</button>
+                        <button id="edit-modal-save-btn" class="btn-primary" data-lang-en="Save Changes" data-lang-es="Guardar Cambios">Save Changes</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Edit Schedule Modal -->
+            <div id="schedule-edit-modal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center p-4 z-50 overflow-y-auto">
+                <div class="card w-full max-w-4xl max-h-full overflow-y-auto p-6">
+                     <div class="flex justify-between items-center mb-4 pb-3 border-b border-gray-700">
+                        <h2 class="text-2xl font-bold text-white" data-lang-en="Edit Schedule" data-lang-es="Editar Horario">Edit Schedule</h2>
+                        <button id="schedule-edit-close-btn" class="text-3xl font-bold text-gray-500 hover:text-white">&times;</button>
+                    </div>
+                    <div id="schedule-items-editor" class="space-y-4 mb-6"></div>
+                    <div>
+                        <h3 class="font-bold text-lg mb-2 text-gray-200" data-lang-en="Add New Schedule Item" data-lang-es="Añadir Nuevo Evento al Horario">Add New Schedule Item</h3>
+                        <form id="add-schedule-item-form" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                            <input type="text" id="new-schedule-time" class="form-input" placeholder="e.g., 8:00 AM">
+                            <input type="text" id="new-schedule-activity" class="form-input" placeholder="Activity (EN)">
+                            <input type="text" id="new-schedule-details" class="form-input" placeholder="Description (EN)">
+                            <div class="flex items-center gap-2">
+                                <input type="text" id="new-schedule-activity-es" class="form-input" placeholder="Activity (ES)">
+                                <button type="button" class="translate-btn p-2 bg-yellow-400 text-gray-800 rounded-full" data-source="new-schedule-activity" data-target="new-schedule-activity-es" data-target-lang="Spanish" title="Translate to Spanish">✨</button>
+                            </div>
+                             <div class="flex items-center gap-2">
+                               <input type="text" id="new-schedule-details-es" class="form-input" placeholder="Description (ES)">
+                               <button type="button" class="translate-btn p-2 bg-yellow-400 text-gray-800 rounded-full" data-source="new-schedule-details" data-target="new-schedule-details-es" data-target-lang="Spanish" title="Translate to Spanish">✨</button>
+                            </div>
+                            <button type="submit" class="btn-secondary md:col-span-4" data-lang-en="Add Item" data-lang-es="Añadir Evento">Add Item</button>
+                        </form>
+                    </div>
+                    <div class="flex justify-end gap-4 mt-6">
+                        <button id="schedule-edit-cancel-btn" class="bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-500 transition" data-lang-en="Cancel" data-lang-es="Cancelar">Cancel</button>
+                        <button id="schedule-edit-save-btn" class="btn-primary" data-lang-en="Save Schedule" data-lang-es="Guardar Horario">Save Schedule</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Edit Forms Modal -->
+            <div id="forms-edit-modal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center p-4 z-50 overflow-y-auto">
+                <div class="card w-full max-w-3xl max-h-full overflow-y-auto p-6">
+                     <div class="flex justify-between items-center mb-4 pb-3 border-b border-gray-700">
+                        <h2 class="text-2xl font-bold text-white" data-lang-en="Edit Forms" data-lang-es="Editar Formularios">Edit Forms</h2>
+                        <button id="forms-edit-close-btn" class="text-3xl font-bold text-gray-500 hover:text-white">&times;</button>
+                    </div>
+                    <div id="forms-editor-container" class="space-y-6 mt-4"></div>
+                    <div class="mt-6">
+                         <form id="add-form-form" class="flex gap-2">
+                            <input type="text" id="new-form-name" class="form-input flex-grow" placeholder="New form title...">
+                            <button type="submit" class="btn-secondary px-4 py-2" data-lang-en="Add Form" data-lang-es="Añadir Formulario">Add Form</button>
+                        </form>
+                    </div>
+                    <div class="flex justify-end gap-4 mt-6">
+                        <button id="forms-edit-cancel-btn" class="bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-500 transition" data-lang-en="Cancel" data-lang-es="Cancelar">Cancel</button>
+                        <button id="forms-edit-save-btn" class="btn-primary" data-lang-en="Save Forms" data-lang-es="Guardar Formularios">Save Forms</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Edit Cleaning Zones Modal -->
+            <div id="cleaning-edit-modal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center p-4 z-50 overflow-y-auto">
+                 <div class="card w-full max-w-4xl max-h-full overflow-y-auto p-6">
+                     <div class="flex justify-between items-center mb-4 pb-3 border-b border-gray-700">
+                        <h2 class="text-2xl font-bold text-white" data-lang-en="Edit Cleaning Zones" data-lang-es="Editar Zonas de Limpieza">Edit Cleaning Zones</h2>
+                        <button id="cleaning-edit-close-btn" class="text-3xl font-bold text-gray-500 hover:text-white">&times;</button>
+                    </div>
+                    <div id="cleaning-zones-editor" class="space-y-6 mt-4"></div>
+                    <div class="flex justify-end gap-4 mt-6">
+                        <button id="cleaning-edit-cancel-btn" class="bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-500 transition" data-lang-en="Cancel" data-lang-es="Cancelar">Cancel</button>
+                        <button id="cleaning-edit-save-btn" class="btn-primary" data-lang-en="Save Zones" data-lang-es="Guardar Zonas">Save Zones</button>
+                    </div>
+                 </div>
+            </div>
+
+            <!-- Printable Log Modal -->
+            <div id="printable-log-modal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center p-4 z-50">
+                <div class="card w-full max-w-lg bg-white p-6 max-h-full overflow-y-auto text-gray-800">
+                    <div id="printable-content">
+                        <h2 id="printable-log-title" class="text-2xl font-bold text-center mb-2 text-gray-900"></h2>
+                        <p id="printable-log-info" class="text-center text-gray-500 mb-6"></p>
+                        <div id="printable-log-data" class="space-y-2"></div>
+                    </div>
+                    <div class="flex justify-between mt-6 gap-4 print:hidden">
+                        <button id="printable-log-close-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg hover:bg-gray-300 w-full" data-lang-en="Close" data-lang-es="Cerrar">Close</button>
+                        <button id="print-log-btn" class="btn-primary w-full" data-lang-en="Print" data-lang-es="Imprimir">Print</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- Bottom Navigation -->
+        <nav class="fixed bottom-0 left-0 right-0 bg-gray-800/50 backdrop-blur-sm border-t border-gray-700 print:hidden">
+            <div class="max-w-4xl mx-auto flex justify-around">
+                <button id="dashboard-btn" class="nav-button view-btn active" data-view="dashboard-view">
+                    <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
+                    <span class="text-xs font-medium" data-lang-en="Dashboard" data-lang-es="Tablero">Dashboard</span>
+                </button>
+                 <button id="forms-btn" class="nav-button view-btn" data-view="forms-view">
+                    <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    <span class="text-xs font-medium" data-lang-en="Forms" data-lang-es="Formularios">Forms</span>
+                </button>
+                <button id="cleaning-btn" class="nav-button view-btn" data-view="cleaning-view">
+                     <svg class="w-7 h-7" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" /></svg>
+                     <span class="text-xs font-medium" data-lang-en="Cleaning" data-lang-es="Limpieza">Cleaning</span>
+                </button>
+                 <button id="training-btn" class="nav-button view-btn" data-view="training-view">
+                    <svg class="w-7 h-7" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" /></svg>
+                    <span class="text-xs font-medium" data-lang-en="Training" data-lang-es="Capacitación">Training</span>
+                </button>
+                 <button id="reports-btn" class="nav-button view-btn" data-view="reports-view">
+                    <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                    <span class="text-xs font-medium" data-lang-en="Reports" data-lang-es="Informes">Reports</span>
+                </button>
+                 <button id="lang-toggle" class="nav-button">
+                    <svg class="w-7 h-7" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 21l5.25-11.25L21 21m-9-3h7.5M3 5.621a48.474 48.474 0 016-.371m0 0c1.12 0 2.233.038 3.334.114M9 5.25V3m3.334 2.364C11.176 10.658 7.69 15.08 3 17.502m9.334-12.138c.896.061 1.785.147 2.666.257m-4.589 8.495a18.023 18.023 0 01-3.827-5.802" /></svg>
+                    <span id="lang-toggle-text" class="text-xs font-medium">Español</span>
+                </button>
+            </div>
+        </nav>
+    </div>
+
+    <script type="module">
+        // Firebase Imports
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, query, where, getDocs, writeBatch, addDoc, updateDoc, deleteDoc, Timestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            const App = {
+                // PROPERTIES
+                lang: 'en',
+                staff: [],
+                roles: [],
+                assignments: {},
+                forms: [],
+                cleaningZones: {},
+                roleTasks: {},
+                schedule: [],
+                trainingModules: [],
+                timeOff: [],
+                logs: {},
+                db: null,
+                auth: null,
+                userId: null,
+                appId: 'kitchen-kontrol-hub',
+                unsubscribeConfig: null,
+                helpContent: {
+                    dashboard: {
+                        title: { en: 'Dashboard Help', es: 'Ayuda del Tablero' },
+                        details: {
+                            en: [
+                                '<strong>Today\'s Assignments:</strong> This section shows who is assigned to each role for the day. Click on any role to see a detailed list of tasks.',
+                                '<strong>Daily Schedule:</strong> This provides an overview of the day\'s key events and times. The current event is highlighted.',
+                                '<strong>Time Off Forecast:</strong> Shows approved time off for the next 7 days.',
+                                '<strong>Editing:</strong> Click the pencil icon (✎) in any section to open a dialog where you can manage its content.'
+                            ],
+                            es: [
+                                '<strong>Asignaciones de Hoy:</strong> Esta sección muestra quién está asignado a cada rol para el día. Haz clic en cualquier rol para ver una lista detallada de tareas.',
+                                '<strong>Horario del Día:</strong> Esto proporciona un resumen de los eventos y horarios clave del día. El evento actual está resaltado.',
+                                '<strong>Pronóstico de Tiempo Libre:</strong> Muestra el tiempo libre aprobado para los próximos 7 días.',
+                                '<strong>Edición:</strong> Haz clic en el ícono del lápiz (✎) en cualquiera de las secciones para abrir un diálogo donde puedes gestionar su contenido.'
+                            ]
+                        }
+                    },
+                    forms: {
+                        title: { en: 'Forms Help', es: 'Ayuda de Formularios' },
+                        details: {
+                            en: [
+                                '<strong>Filling Out Forms:</strong> Use the tabs at the top to switch between different log forms. Fill in the required information and click the "Submit Log" button at the bottom of the form.',
+                                '<strong>Smart Suggestions:</strong> For temperature fields, if you enter a value outside the safe range, a ✨ button will appear. Click it to get an AI-generated corrective action plan.',
+                                '<strong>Customization:</strong> Click the pencil icon (✎) to open the form editor. Here you can add new forms, delete existing ones, and add, remove, or edit the fields within any form.',
+                                '<strong>Reporting:</strong> All submitted form data is automatically saved and can be viewed in the "Reports" section.'
+                            ],
+                            es: [
+                                '<strong>Completar Formularios:</strong> Usa las pestañas en la parte superior para cambiar entre los diferentes formularios de registro. Completa la información requerida y haz clic en el botón "Enviar Registro" en la parte inferior del formulario.',
+                                '<strong>Sugerencias Inteligentes:</strong> Para los campos de temperatura, si ingresas un valor fuera del rango seguro, aparecerá un botón de ✨. Haz clic en él para obtener un plan de acción correctiva generado por IA.',
+                                '<strong>Personalización:</strong> Haz clic en el ícono del lápiz (✎) para abrir el editor de formularios. Aquí puedes agregar nuevos formularios, eliminar los existentes y agregar, quitar o editar los campos dentro de cualquier formulario.',
+                                '<strong>Informes:</strong> Todos los datos de los formularios enviados se guardan automáticamente y se pueden ver en la sección "Informes".'
+                            ]
+                        }
+                    },
+                    cleaning: {
+                        title: { en: 'Cleaning Help', es: 'Ayuda de Limpieza' },
+                        details: {
+                            en: [
+                                '<strong>Weekly Zones:</strong> This page shows the 5 cleaning zones and which staff member is assigned to each zone for the current week. The tasks for each zone are listed as a checklist.',
+                                '<strong>Rotating Assignments:</strong> Assignments rotate automatically each week to ensure all areas are covered fairly over time.',
+                                '<strong>Editing Zones:</strong> Click the pencil icon (✎) to open a dialog where you can edit zone names and manage the tasks for each zone in both English and Spanish.'
+                            ],
+                             es: [
+                                '<strong>Zonas Semanales:</strong> Esta página muestra las 5 zonas de limpieza y qué miembro del personal está asignado a cada zona para la semana actual. Las tareas de cada zona se enumeran como una lista de verificación.',
+                                '<strong>Asignaciones Rotativas:</strong> Las asignaciones rotan automáticamente cada semana para garantizar que todas las áreas se cubran de manera justa con el tiempo.',
+                                '<strong>Editar Zonas:</strong> Haz clic en el ícono del lápiz (✎) para abrir un diálogo donde puedes editar los nombres de las zonas y gestionar las tareas de cada zona tanto en inglés como en español.'
+                            ]
+                        }
+                    },
+                     training: {
+                        title: { en: 'Training Help', es: 'Ayuda de Capacitación' },
+                        details: {
+                            en: [
+                                '<strong>Training Modules:</strong> This section lists all available training topics.',
+                                '<strong>Manuals:</strong> Click to view the full, detailed training document for a topic.',
+                                '<strong>Facts:</strong> Click for a quick "cheat sheet" summary of the most important points.',
+                                '<strong>Quizzes:</strong> Click to take a multiple-choice test. You must select your name. Results are graded instantly and saved for manager review.'
+                            ],
+                             es: [
+                                '<strong>Módulos de Capacitación:</strong> Esta sección enumera todos los temas de capacitación disponibles.',
+                                '<strong>Manuales:</strong> Haz clic para ver el documento de capacitación completo y detallado de un tema.',
+                                '<strong>Hechos:</strong> Haz clic para obtener un resumen rápido de los puntos más importantes.',
+                                '<strong>Pruebas:</strong> Haz clic para realizar una prueba de opción múltiple. Debes seleccionar tu nombre. Los resultados se califican al instante y se guardan para que el gerente los revise.'
+                            ]
+                        }
+                    },
+                    reports: {
+                        title: { en: 'Reports Help', es: 'Ayuda de Informes' },
+                        details: {
+                             en: [
+                                '<strong>Date Range:</strong> Select a start and end date to filter the reports.',
+                                '<strong>Submitted Logs:</strong> The main list shows all logs that were successfully submitted within the selected date range. Click on any log entry to view and print its details.',
+                                '<strong>Missing Logs:</strong> Check the "Show missing logs" box to see a list of forms that were NOT submitted for each day in the range. You can export this list to a CSV file.',
+                                '<strong>Log Activity Grid:</strong> This grid gives a visual overview of form compliance. A green circle (●) means the form was submitted on that day, while a red circle (○) means it was missed.'
+                            ],
+                            es: [
+                                '<strong>Rango de Fechas:</strong> Selecciona una fecha de inicio y fin para filtrar los informes.',
+                                '<strong>Registros Enviados:</strong> La lista principal muestra todos los registros que se enviaron con éxito dentro del rango de fechas seleccionado. Haz clic en cualquier entrada de registro para ver e imprimir sus detalles.',
+                                '<strong>Registros Faltantes:</strong> Marca la casilla "Mostrar registros faltantes" para ver una lista de los formularios que NO se enviaron cada día en el rango. Puedes exportar esta lista a un archivo CSV.',
+                                '<strong>Cuadrícula de Actividad de Registro:</strong> Esta cuadrícula ofrece un resumen visual del cumplimiento de los formularios. Un círculo verde (●) significa que el formulario se envió ese día, mientras que un círculo rojo (○) significa que se omitió.'
+                            ]
+                        }
+                    }
+                },
+                translations: { // Legacy translations for roles
+                    'Breakfast Rover': 'Encargado de Desayuno',
+                    'Line Worker 1': 'Servidor de Línea 1',
+                    'Line Worker 2': 'Servidor de Línea 2',
+                    'POS Worker 1': 'Cajero 1',
+                    'POS Worker 2': 'Cajero 2'
+                },
+
+                // METHODS
+                async init() {
+                    this.appId = typeof __app_id !== 'undefined' ? __app_id : this.appId;
+                    
+                    this.setupEventListeners();
+                    
+                    try {
+                        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+                        const app = initializeApp(firebaseConfig);
+                        this.db = getFirestore(app);
+                        this.auth = getAuth(app);
+
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await signInWithCustomToken(this.auth, __initial_auth_token);
+                        } else {
+                            await signInAnonymously(this.auth);
+                        }
+                        
+                        onAuthStateChanged(this.auth, (user) => {
+                            if (user) {
+                                this.userId = user.uid;
+                                this.loadDataFromFirestore();
+                            }
+                        });
+
+                    } catch (error) {
+                        console.error("Firebase initialization failed:", error);
+                        document.getElementById('loading-overlay').textContent = 'Connection Error. Please refresh.';
+                    }
+                },
+                
+                async loadDataFromFirestore() {
+                    const loadingOverlay = document.getElementById('loading-overlay');
+                    const appContainer = document.getElementById('app-container');
+
+                    if (this.unsubscribeConfig) this.unsubscribeConfig();
+
+                    const configDocRef = doc(this.db, `artifacts/${this.appId}/public/data/config/appData`);
+                    
+                    this.unsubscribeConfig = onSnapshot(configDocRef, (docSnap) => {
+                        if (docSnap.exists()) {
+                            const data = docSnap.data();
+                            this.staff = data.staff || [];
+                            this.roles = data.roles || [];
+                            this.assignments = data.assignments || {};
+                            this.schedule = data.schedule || [];
+                            this.forms = data.forms || [];
+                            this.cleaningZones = data.cleaningZones || {};
+                            this.roleTasks = data.roleTasks || {};
+                            this.trainingModules = data.trainingModules || [];
+                            this.timeOff = data.timeOff || [];
+                        } else {
+                            this.initializeDefaultData();
+                            return;
+                        }
+                        
+                        this.renderAllComponents();
+                        
+                        loadingOverlay.style.display = 'none';
+                        appContainer.style.opacity = '1';
+
+                    }, (error) => {
+                        console.error("Error listening to config changes:", error);
+                        loadingOverlay.textContent = 'Failed to load app data.';
+                    });
+
+                    this.setupReportDates();
+                    this.loadLogsForDateRange();
+                },
+
+                async initializeDefaultData() {
+                     const defaultData = {
+                        staff: ['Regina', 'Alba', 'Carla', 'New', 'Veronica'],
+                        roles: ['Breakfast Rover', 'Line Worker 1', 'POS Worker 1', 'Line Worker 2', 'POS Worker 2'],
+                        assignments: {},
+                        schedule: [
+                            { time: '7:00 AM', activity: {en: 'Manager Arrival', es: 'Llegada del Gerente'}, details: {en: 'Initial checks, start warmers, verify delivery.', es: 'Chequeos iniciales, encender calentadores, verificar entrega.'} },
+                            { time: '7:30 AM', activity: {en: 'Staff Arrival & Huddle', es: 'Llegada del Personal y Reunión'}, details: {en: 'Review whiteboard for assignments.', es: 'Revisar pizarra para asignaciones.'} },
+                            { time: '7:30 AM - 9:00 AM', activity: {en: 'Breakfast Service & Prep', es: 'Servicio de Desayuno y Preparación'}, details: {en: 'Rover serves breakfast, team preps for lunch.', es: 'Rover sirve desayuno, equipo prepara almuerzo.'} },
+                            { time: '9:00 AM - 10:30 AM', activity: {en: 'Lunch Preparation', es: 'Preparación del Almuerzo'}, details: {en: 'Full team sets up serving line.', es: 'Equipo completo monta la línea de servicio.'} },
+                            { time: '10:30 AM - 1:30 PM', activity: {en: 'Lunch Service', es: 'Servicio de Almuerzo'}, details: {en: 'Four lunch periods, staggered break.', es: 'Cuatro períodos de almuerzo, descanso escalonado.'} },
+                            { time: '1:30 PM - 2:00 PM', activity: {en: 'Team Cleaning & Breakdown', es: 'Limpieza y Desmontaje en Equipo'}, details: {en: 'Perform assigned Cleaning Zone duties.', es: 'Realizar tareas de la Zona de Limpieza asignada.'} },
+                            { time: '2:00 PM', activity: {en: 'Staff Departure', es: 'Salida del Personal'}, details: {en: 'All four employees clock out.', es: 'Los cuatro empleados marcan su salida.'} },
+                            { time: '2:00 PM - 2:30 PM', activity: {en: 'Manager Close-Out', es: 'Cierre del Gerente'}, details: {en: 'Final walk-through and reports.', es: 'Recorrido final e informes.'} }
+                        ],
+                        cleaningZones: {
+                            'Zone 1': { name: { en: 'Serving Line & Warmers', es: 'Línea de Servir y Calentadores' }, details: [ { en: 'Remove all food pans', es: 'Quitar todas las bandejas de comida' }, { en: 'Drain and wipe warmer wells', es: 'Drenar y limpiar los pozos del calentador' }, { en: 'Sanitize top counter surfaces', es: 'Desinfectar las superficies superiores del mostrador' }, { en: 'Clean sneeze guards', es: 'Limpiar protectores de estornudos' }, { en: 'Polish front stainless steel', es: 'Pulir el acero inoxidable frontal' } ]},
+                            'Zone 2': { name: { en: 'Dish Pit & Prep Surfaces', es: 'Área de Lavado y Superficies de Preparación' }, details: [ { en: 'Wash, rinse, sanitize all pans/utensils', es: 'Lavar, enjuagar, desinfectar todas las bandejas/utensilios' }, { en: 'Scrub and sanitize 3-compartment sink', es: 'Fregar y desinfectar el fregadero de 3 compartimentos' }, { en: 'Clear floor drains', es: 'Limpiar los desagües del piso' }, { en: 'Restock soap and paper towels', es: 'Reponer jabón y toallas de papel' } ]},
+                            'Zone 3': { name: { en: 'FOH & POS Stations', es: 'Área Pública y Estaciones POS' }, details: [ { en: 'Sanitize both POS stations', es: 'Desinfectar ambas estaciones de POS' }, { en: 'Wipe down milk cooler doors/handles', es: 'Limpiar las puertas/manijas del enfriador de leche' }, { en: 'Wipe condiment station', es: 'Limpiar la estación de condimentos' }, { en: 'Wipe all fridge/freezer door handles', es: 'Limpiar todas las manijas de las puertas de refrigeradores/congeladores' } ]},
+                            'Zone 4': { name: { en: 'Floors & General Utility', es: 'Pisos y Servicios Generales' }, details: [ { en: 'Consolidate and remove all trash/recycling', es: 'Consolidar y retirar toda la basura/reciclaje' }, { en: 'Replace all can liners', es: 'Reemplazar todas las bolsas de basura' }, { en: 'Sweep entire kitchen floor', es: 'Barrer todo el piso de la cocina' }, { en: 'Mop entire kitchen floor', es: 'Trapear todo el piso de la cocina' } ]},
+                            'Zone 5': { name: { en: 'Monitor & Compliance', es: 'Monitor y Cumplimiento' }, details: [ { en: 'Complete required school photo tasks', es: 'Completar las tareas fotográficas escolares requeridas' }, { en: 'Update posters/menus as needed', es: 'Actualizar carteles/menús según sea necesario' }, { en: 'Complete all tasks from Zone 3 checklist', es: 'Completar todas las tareas de la lista de verificación de la Zona 3' } ]}
+                        },
+                        roleTasks: {
+                            'Breakfast Rover': { en: ['Serve breakfast to students (7:30-9:00 AM)', 'Restock breakfast items (milk, juice, fruit)', 'Clean and sanitize breakfast cart after service', 'Assist with lunch prep after 9:00 AM'], es: ['Servir el desayuno a los estudiantes (7:30-9:00 AM)', 'Reponer artículos del desayuno (leche, jugo, fruta)', 'Limpiar y desinfectar el carrito del desayuno después del servicio', 'Ayudar con la preparación del almuerzo después de las 9:00 AM'] },
+                            'Line Worker 1': { en: ['Prepare hot lunch items (9:00-10:30 AM)', 'Set up hot serving line', 'Serve main dishes during all lunch periods', 'Log food temperatures on the production form'], es: ['Preparar platos calientes del almuerzo (9:00-10:30 AM)', 'Montar la línea de servicio caliente', 'Servir platos principales durante todos los períodos de almuerzo', 'Registrar las temperaturas de los alimentos en el formulario de producción'] },
+                            'Line Worker 2': { en: ['Prepare cold lunch items & sides (9:00-10:30 AM)', 'Set up cold serving line/salad bar', 'Serve sides during all lunch periods', 'Ensure serving utensils are clean and stocked'], es: ['Preparar platos fríos y acompañamientos (9:00-10:30 AM)', 'Montar la línea de servicio fría/barra de ensaladas', 'Servir acompañamientos durante todos los períodos de almuerzo', 'Asegurar que los utensilios de servicio estén limpios y abastecidos'] },
+                            'POS Worker 1': { en: ['Operate Point-of-Sale system during lunch', 'Ensure accurate student account transactions', 'Restock condiment and utensil stations before service', 'Wipe down POS station and surrounding area'], es: ['Operar el sistema de Punto de Venta durante el almuerzo', 'Asegurar transacciones precisas en las cuentas de los estudiantes', 'Reponer las estaciones de condimentos y utensilios antes del servicio', 'Limpiar la estación de POS y el área circundante'] },
+                            'POS Worker 2': { en: ['Operate second Point-of-Sale system during lunch', 'Assist students with account issues', 'Restock condiment and utensil stations during service', 'Wipe down second POS station and surrounding area'], es: ['Operar el segundo sistema de Punto de Venta durante el almuerzo', 'Ayudar a los estudiantes con problemas en sus cuentas', 'Reponer las estaciones de condimentos y utensilios durante el servicio', 'Limpiar la segunda estación de POS y el área circundante'] }
+                        },
+                        timeOff: []
+                    };
+                    defaultData.forms = [
+                        { title: 'Temperatures', fields: [ { label: 'Walk-in Fridge', type: 'number', safeRange: '34-40' }, { label: 'Freezer', type: 'number', safeRange: '-10-0' }, { label: 'Milk Cooler 1', type: 'number', safeRange: '34-40' }, { label: 'Milk Cooler 2', type: 'number', safeRange: '34-40' }, { label: 'Warmer 1', type: 'number', safeRange: '140-165' }, { label: 'Warmer 2', type: 'number', safeRange: '140-165' } ] },
+                        { title: 'Production', fields: [ { label: 'Food Item', type: 'text' }, { label: 'Temp @ Arrival', type: 'number' }, { label: 'Temp @ Pre-Service', type: 'number' }, { label: 'Temp @ Mid-Service', type: 'number' }, { label: 'Portions Delivered', type: 'number' }, { label: 'Portions Wasted', type: 'number' } ] },
+                        { title: 'Cleaning', fields: Object.values(defaultData.cleaningZones).flatMap(zone => zone.details.map(detail => ({ label: `${zone.name.en}: ${detail.en}`, type: 'checkbox' }))) }
+                    ];
+                    defaultData.trainingModules = [
+                        {
+                            id: 'warmingCabinets',
+                            title: { en: 'Warming Cabinets', es: 'Gabinetes de Calentamiento' },
+                            manual: { en: 'Detailed manual on warming cabinet operation...', es: 'Manual detallado sobre la operación del gabinete de calentamiento...' },
+                            facts: { en: ['Fact 1...', 'Fact 2...'], es: ['Hecho 1...', 'Hecho 2...'] },
+                            quiz: {
+                                questions: [
+                                     { question: { en: "What is the minimum safe temperature for hot holding?", es: "¿Cuál es la temperatura mínima segura para mantener calientes los alimentos?" }, options: [{en: "135°F", es:"135°F"}, {en:"140°F", es:"140°F"}, {en:"165°F", es:"165°F"}], answer: {en:"140°F", es:"140°F"}}
+                                ],
+                                passingScore: 1
+                            }
+                        },
+                        {
+                            id: 'utensilGuide',
+                            title: { en: 'Serving Utensil & Pan Guide', es: 'Guía de Utensilios y Bandejas' },
+                            manual: {
+                                en: `
+                                    <h3 class="text-xl font-bold text-white mb-2">Main Dishes</h3>
+                                    <table class="training-table"><thead><tr><th>Food Item</th><th>Utensil</th><th>Pan Type</th></tr></thead><tbody>
+                                    <tr><td><strong>Mac & Cheese</strong></td><td>4oz Spoodle</td><td>Full, Deep</td></tr>
+                                    <tr><td><strong>Chicken Nuggets (8)</strong></td><td>8oz Scoop / Tongs</td><td>Full, Shallow</td></tr>
+                                    <tr><td><strong>Pizza Slice</strong></td><td>Tongs / Spatula</td><td>Full, Shallow (Sheet Pan)</td></tr>
+                                    <tr><td><strong>Spaghetti & Meat Sauce</strong></td><td>6oz Spoodle</td><td>Full, Deep</td></tr>
+                                    <tr><td><strong>Beef Tacos (2)</strong></td><td>#16 Scoop (2oz)</td><td>Half, Deep</td></tr>
+                                    </tbody></table>
+                                    <h3 class="text-xl font-bold text-white mt-4 mb-2">Vegetables</h3>
+                                    <table class="training-table"><thead><tr><th>Food Item</th><th>Utensil</th><th>Pan Type</th></tr></thead><tbody>
+                                    <tr><td><strong>Steamed Broccoli</strong></td><td>4oz Slotted Spoodle</td><td>Half, Deep</td></tr>
+                                    <tr><td><strong>Corn</strong></td><td>4oz Slotted Spoodle</td><td>Half, Deep</td></tr>
+                                    <tr><td><strong>Mashed Potatoes</strong></td><td>#12 Scoop (3.25oz)</td><td>Half, Deep</td></tr>
+                                    <tr><td><strong>Green Beans</strong></td><td>4oz Slotted Spoon</td><td>Half, Deep</td></tr>
+                                    </tbody></table>
+                                `,
+                                es: `
+                                    <h3 class="text-xl font-bold text-white mb-2">Platos Principales</h3>
+                                    <table class="training-table"><thead><tr><th>Alimento</th><th>Utensilio</th><th>Tipo de Bandeja</th></tr></thead><tbody>
+                                    <tr><td><strong>Macarrones con Queso</strong></td><td>Cucharón de 4oz</td><td>Completa, Profunda</td></tr>
+                                    <tr><td><strong>Nuggets de Pollo (8)</strong></td><td>Cuchara de 8oz / Pinzas</td><td>Completa, Plana</td></tr>
+                                    <tr><td><strong>Rebanada de Pizza</strong></td><td>Pinzas / Espátula</td><td>Completa, Plana (Sheet Pan)</td></tr>
+                                    <tr><td><strong>Espagueti con Salsa de Carne</strong></td><td>Cucharón de 6oz</td><td>Completa, Profunda</td></tr>
+                                    <tr><td><strong>Tacos de Carne (2)</strong></td><td>Cuchara #16 (2oz)</td><td>Media, Profunda</td></tr>
+                                    </tbody></table>
+                                    <h3 class="text-xl font-bold text-white mt-4 mb-2">Vegetales</h3>
+                                    <table class="training-table"><thead><tr><th>Alimento</th><th>Utensilio</th><th>Tipo de Bandeja</th></tr></thead><tbody>
+                                    <tr><td><strong>Brócoli al Vapor</strong></td><td>Cucharón Ranurado de 4oz</td><td>Media, Profunda</td></tr>
+                                    <tr><td><strong>Maíz</strong></td><td>Cucharón Ranurado de 4oz</td><td>Media, Profunda</td></tr>
+                                    <tr><td><strong>Puré de Papas</strong></td><td>Cuchara #12 (3.25oz)</td><td>Media, Profunda</td></tr>
+                                    <tr><td><strong>Ejotes</strong></td><td>Cuchara Ranurada de 4oz</td><td>Media, Profunda</td></tr>
+                                    </tbody></table>
+                                `
+                            },
+                            facts: {
+                                en: [
+                                    "<strong>Spoodle:</strong> Use for exact liquid/semi-liquid portions like Mac & Cheese.",
+                                    "<strong>Scoop:</strong> Use for consistent mounded portions like Mashed Potatoes.",
+                                    "<strong>Tongs:</strong> Use for individual, solid items like Chicken Nuggets or Dinner Rolls.",
+                                    "<strong>Slotted Utensils:</strong> Use to drain liquid from items like Corn or Green Beans.",
+                                    "<strong>Deep Pans:</strong> Best for loose or saucy items to prevent spills.",
+                                    "<strong>Shallow Pans:</strong> Best for items that need to be spread out, like Pizza or Nuggets."
+                                ],
+                                es: [
+                                    "<strong>Cucharón (Spoodle):</strong> Úsalo para porciones líquidas/semi-líquidas exactas como Macarrones con Queso.",
+                                    "<strong>Cuchara (Scoop):</strong> Úsala para porciones consistentes y redondeadas como el Puré de Papas.",
+                                    "<strong>Pinzas (Tongs):</strong> Úsalas para artículos sólidos e individuales como Nuggets de Pollo o Panecillos.",
+                                    "<strong>Utensilios Ranurados:</strong> Úsalos para drenar el líquido de alimentos como el Maíz o los Ejotes.",
+                                    "<strong>Bandejas Profundas:</strong> Ideales para alimentos sueltos o con salsa para evitar derrames.",
+                                    "<strong>Bandejas Planas:</strong> Ideales para alimentos que necesitan estar extendidos, como Pizza o Nuggets."
+                                ]
+                            },
+                            quiz: {
+                                questions: [
+                                    {
+                                        question: { en: "Which utensil provides the most accurate portion for Mac & Cheese?", es: "¿Qué utensilio proporciona la porción más precisa para los Macarrones con Queso?" },
+                                        options: [
+                                            { en: "Tongs", es: "Pinzas" },
+                                            { en: "4oz Spoodle", es: "Cucharón de 4oz" },
+                                            { en: "8oz Scoop", es: "Cuchara de 8oz" }
+                                        ],
+                                        answer: { en: "4oz Spoodle", es: "Cucharón de 4oz" }
+                                    },
+                                    {
+                                        question: { en: "What is the best pan type for Chicken Nuggets?", es: "¿Cuál es el mejor tipo de bandeja para los Nuggets de Pollo?" },
+                                        options: [
+                                            { en: "Full, Deep", es: "Completa, Profunda" },
+                                            { en: "Half, Deep", es: "Media, Profunda" },
+                                            { en: "Full, Shallow", es: "Completa, Plana" }
+                                        ],
+                                        answer: { en: "Full, Shallow", es: "Completa, Plana" }
+                                    },
+                                     {
+                                        question: { en: "You need to serve Steamed Broccoli. Which utensil should you use to drain the liquid?", es: "Necesitas servir Brócoli al Vapor. ¿Qué utensilio debes usar para drenar el líquido?" },
+                                        options: [
+                                            { en: "Standard Spoon", es: "Cuchara Estándar" },
+                                            { en: "Slotted Spoodle", es: "Cucharón Ranurado" },
+                                            { en: "Tongs", es: "Pinzas" }
+                                        ],
+                                        answer: { en: "Slotted Spoodle", es: "Cucharón Ranurado" }
+                                    }
+                                ],
+                                passingScore: 0.75
+                            }
+                        }
+                    ];
+                    
+                    await this.saveConfigToFirestore(defaultData);
+                },
+
+                renderAllComponents() {
+                    this.updateTime();
+                    this.renderDashboard();
+                    this.renderCleaningZones();
+                    this.renderForms();
+                    this.renderTrainingModules();
+                    this.renderReports();
+                    this.updateLanguage();
+                },
+
+                async saveConfigToFirestore(data) {
+                    if (!this.db) return;
+                    const configDocRef = doc(this.db, `artifacts/${this.appId}/public/data/config/appData`);
+                    await setDoc(configDocRef, data);
+                },
+
+                async saveLog(logType, entry) {
+                    if (!this.db) return;
+                    const date = entry.timestamp.split('T')[0];
+                    const logDocRef = doc(this.db, `artifacts/${this.appId}/public/data/logs/${date}`);
+                    const logDocSnap = await getDoc(logDocRef);
+                    const existingLogs = logDocSnap.exists() ? logDocSnap.data() : {};
+                    
+                    if (!existingLogs[logType]) {
+                        existingLogs[logType] = [];
+                    }
+                    existingLogs[logType].push(entry);
+
+                    await setDoc(logDocRef, existingLogs, { merge: true });
+                },
+                
+                async loadLogsForDateRange() {
+                    const startDateStr = document.getElementById('report-start-date').value;
+                    const endDateStr = document.getElementById('report-end-date').value;
+                    if (!startDateStr || !endDateStr || !this.db) return;
+                    
+                    this.logs = {}; // Clear previous logs
+                    
+                    for (let d = new Date(startDateStr); d <= new Date(endDateStr); d.setDate(d.getDate() + 1)) {
+                        const dateStr = d.toISOString().split('T')[0];
+                        const logDocRef = doc(this.db, `artifacts/${this.appId}/public/data/logs/${dateStr}`);
+                        const docSnap = await getDoc(logDocRef);
+                        if (docSnap.exists()) {
+                            this.logs[dateStr] = docSnap.data();
+                        }
+                    }
+
+                    this.renderReports();
+                },
+                
+                async saveAssignments() {
+                    const today = this.getTodayDateString();
+                    const newAssignments = {};
+                    document.querySelectorAll('#daily-assignments-container select').forEach(select => {
+                        newAssignments[select.dataset.role] = select.value;
+                    });
+                    this.assignments[today] = newAssignments;
+                    
+                    await this.saveConfigToFirestore({ ...this.getCurrentConfigData(), assignments: this.assignments });
+                    
+                    this.hideEditModal();
+                },
+                
+                getCurrentConfigData() {
+                    return {
+                        staff: this.staff,
+                        roles: this.roles,
+                        assignments: this.assignments,
+                        schedule: this.schedule,
+                        forms: this.forms,
+                        cleaningZones: this.cleaningZones,
+                        roleTasks: this.roleTasks,
+                        trainingModules: this.trainingModules,
+                        timeOff: this.timeOff
+                    };
+                },
+
+                async addStaff(name) { if (!this.staff.includes(name)) { this.staff.push(name); await this.saveConfigToFirestore(this.getCurrentConfigData()); this.renderEditModalContent(); } },
+                async removeStaff(index) { this.staff.splice(index, 1); await this.saveConfigToFirestore(this.getCurrentConfigData()); this.renderEditModalContent(); },
+                async addRole(name) { if (!this.roles.includes(name)) { if (!this.roleTasks[name]) this.roleTasks[name] = { en: ['No tasks defined yet.'], es: ['Aún no se han definido tareas.'] }; this.roles.push(name); await this.saveConfigToFirestore(this.getCurrentConfigData()); this.renderEditModalContent(); } },
+                async removeRole(index) { this.roles.splice(index, 1); await this.saveConfigToFirestore(this.getCurrentConfigData()); this.renderEditModalContent(); },
+                async saveSchedule() { let newSchedule = this.getTemporaryScheduleFromEditor(); newSchedule.sort((a, b) => { const aTime = a.time.toLowerCase().replace(/\s/g, ''), bTime = b.time.toLowerCase().replace(/\s/g, ''); if (aTime < bTime) return -1; if (aTime > bTime) return 1; return 0; }); this.schedule = newSchedule; await this.saveConfigToFirestore(this.getCurrentConfigData()); this.hideScheduleEditModal();},
+                async saveForms() { this.forms = this.getTemporaryFormsFromEditor(); await this.saveConfigToFirestore(this.getCurrentConfigData()); this.hideFormsEditModal(); },
+                async saveCleaningZones() { this.cleaningZones = this.getTemporaryCleaningZonesFromEditor(); await this.saveConfigToFirestore(this.getCurrentConfigData()); this.hideCleaningEditModal(); },
+                async saveQuizResult(result) {
+                    if(!this.db) return;
+                    await addDoc(collection(this.db, `artifacts/${this.appId}/public/data/quizResults`), result);
+                },
+
+                setupEventListeners() {
+                    document.querySelectorAll('.view-btn').forEach(btn => btn.addEventListener('click', (e) => this.switchView(e.currentTarget)));
+                    document.getElementById('forms-container').addEventListener('click', (e) => { 
+                        if (e.target.classList.contains('form-tab-btn')) this.switchForm(e.target);
+                        if (e.target.closest('.gemini-suggestion-btn')) this.getCorrectiveAction(e.target.closest('.gemini-suggestion-btn'));
+                    });
+                     document.getElementById('forms-container').addEventListener('input', (e) => {
+                        if (e.target.classList.contains('temp-input')) this.handleTempChange(e.target);
+                    });
+                    document.getElementById('lang-toggle').addEventListener('click', () => this.toggleLanguage());
+                    document.getElementById('forms-container').addEventListener('submit', (e) => this.handleFormSubmit(e));
+                    document.querySelectorAll('.help-btn').forEach(btn => btn.addEventListener('click', (e) => this.showHelpModal(e.currentTarget.dataset.helpSection)));
+                    document.getElementById('help-modal-close-btn').addEventListener('click', () => this.hideHelpModal());
+                    document.getElementById('help-modal').addEventListener('click', (e) => { if(e.target.id === 'help-modal') this.hideHelpModal() });
+                    document.getElementById('report-start-date').addEventListener('change', () => this.loadLogsForDateRange());
+                    document.getElementById('report-end-date').addEventListener('change', () => this.loadLogsForDateRange());
+                    document.getElementById('show-missing-logs-checkbox').addEventListener('change', () => this.renderReports());
+                    document.getElementById('export-csv-btn').addEventListener('click', () => this.exportMissingLogsCSV());
+                    document.getElementById('logs-container').addEventListener('click', (e) => { const link = e.target.closest('.log-link'); if (link) this.showPrintableLog(JSON.parse(link.dataset.log)); });
+                    document.getElementById('edit-assignments-btn').addEventListener('click', () => this.showEditModal());
+                    document.getElementById('edit-modal-close-btn').addEventListener('click', () => this.hideEditModal());
+                    document.getElementById('edit-modal-cancel-btn').addEventListener('click', () => this.hideEditModal());
+                    document.getElementById('edit-modal-save-btn').addEventListener('click', () => this.saveAssignments());
+                    document.getElementById('add-staff-form').addEventListener('submit', (e) => { e.preventDefault(); const input = document.getElementById('new-staff-name'); if (input.value.trim()) { this.addStaff(input.value.trim()); input.value = ''; } });
+                    document.getElementById('add-role-form').addEventListener('submit', (e) => { e.preventDefault(); const input = document.getElementById('new-role-name'); if (input.value.trim()) { this.addRole(input.value.trim()); input.value = ''; } });
+                    document.getElementById('edit-schedule-btn').addEventListener('click', () => this.showScheduleEditModal());
+                    document.getElementById('schedule-edit-close-btn').addEventListener('click', () => this.hideScheduleEditModal());
+                    document.getElementById('schedule-edit-cancel-btn').addEventListener('click', () => this.hideScheduleEditModal());
+                    document.getElementById('schedule-edit-save-btn').addEventListener('click', () => this.saveSchedule());
+                    document.getElementById('add-schedule-item-form').addEventListener('submit', (e) => { e.preventDefault(); this.addScheduleItem(); });
+                    document.getElementById('schedule-edit-modal').addEventListener('click', e => {
+                        const btn = e.target.closest('.translate-btn');
+                        if(btn) this.handleTranslation(btn);
+                    });
+                    document.getElementById('edit-forms-btn').addEventListener('click', () => this.showFormsEditModal());
+                    document.getElementById('forms-edit-close-btn').addEventListener('click', () => this.hideFormsEditModal());
+                    document.getElementById('forms-edit-cancel-btn').addEventListener('click', () => this.hideFormsEditModal());
+                    document.getElementById('forms-edit-save-btn').addEventListener('click', () => this.saveForms());
+                    document.getElementById('add-form-form').addEventListener('submit', (e) => { e.preventDefault(); const input = document.getElementById('new-form-name'); if (input.value.trim()) { this.addForm(input.value.trim()); input.value = ''; } });
+                    document.getElementById('edit-cleaning-btn').addEventListener('click', () => this.showCleaningEditModal());
+                    document.getElementById('cleaning-edit-close-btn').addEventListener('click', () => this.hideCleaningEditModal());
+                    document.getElementById('cleaning-edit-cancel-btn').addEventListener('click', () => this.hideCleaningEditModal());
+                    document.getElementById('cleaning-edit-save-btn').addEventListener('click', () => this.saveCleaningZones());
+                     document.getElementById('cleaning-edit-modal').addEventListener('click', e => {
+                         const btn = e.target.closest('.translate-btn');
+                        if(btn) this.handleTranslation(btn);
+                    });
+                    const taskModal = document.getElementById('task-modal');
+                    document.getElementById('modal-close-btn').addEventListener('click', () => this.hideRoleTasks());
+                    taskModal.addEventListener('click', (e) => { if (e.target === taskModal) this.hideRoleTasks(); });
+                    document.getElementById('assignments-grid').addEventListener('click', (e) => { const roleButton = e.target.closest('.role-btn'); if (roleButton) this.showRoleTasks(roleButton.dataset.role); });
+                    document.getElementById('printable-log-close-btn').addEventListener('click', () => this.hidePrintableLog());
+                    document.getElementById('print-log-btn').addEventListener('click', () => this.printLog());
+                    document.getElementById('gemini-modal-close-btn').addEventListener('click', () => this.hideGeminiModal());
+                    document.getElementById('gemini-modal').addEventListener('click', (e) => { if (e.target.id === 'gemini-modal') this.hideGeminiModal() });
+                    document.getElementById('training-modal-close-btn').addEventListener('click', () => this.hideTrainingModal());
+                    document.getElementById('training-content-modal').addEventListener('click', (e) => { if(e.target.id === 'training-content-modal') this.hideTrainingModal()});
+                    document.getElementById('edit-time-off-btn').addEventListener('click', () => this.showTimeOffEditModal());
+                    document.getElementById('time-off-edit-close-btn').addEventListener('click', () => this.hideTimeOffEditModal());
+                    document.getElementById('add-time-off-form').addEventListener('submit', (e) => this.handleTimeOffFormSubmit(e));
+                    document.getElementById('time-off-cancel-btn').addEventListener('click', () => this.resetTimeOffForm());
+                    document.getElementById('time-off-full-day').addEventListener('change', (e) => {
+                        document.getElementById('time-off-range-container').style.display = e.target.checked ? 'none' : 'grid';
+                    });
+                },
+
+                updateTime() {
+                    const now = new Date();
+                    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+                    document.getElementById('current-time').textContent = now.toLocaleDateString(this.lang === 'en' ? 'en-US' : 'es-ES', options);
+                    if (this.schedule.length > 0) {
+                        this.highlightCurrentSchedule();
+                    }
+                },
+
+                renderDashboard() {
+                    const assignmentsGrid = document.getElementById('assignments-grid');
+                    assignmentsGrid.innerHTML = '';
+                    const today = this.getTodayDateString();
+                    let dailyAssignments = this.assignments[today];
+                    if (!dailyAssignments) {
+                        dailyAssignments = {};
+                        const dayOfYear = Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 0)) / 1000 / 60 / 60 / 24);
+                        const staffForRotation = [...this.staff];
+                        this.roles.forEach((role, index) => {
+                            const staffIndex = staffForRotation.length > 0 ? (dayOfYear + index) % staffForRotation.length : -1;
+                            dailyAssignments[role] = staffIndex !== -1 ? staffForRotation[staffIndex] : 'Unassigned';
+                        });
+                    }
+                    this.roles.forEach(role => {
+                        const assignedStaff = dailyAssignments[role] || 'Unassigned';
+                        const roleEl = document.createElement('button');
+                        roleEl.className = 'role-btn p-4 bg-gray-800 rounded-lg text-left hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-[#00A0B0] transition';
+                        roleEl.dataset.role = role;
+                        const roleName = this.lang === 'es' ? (this.translations[role] || role) : role;
+                        roleEl.innerHTML = `<h3 class="font-bold text-lg text-[#00A0B0]">${roleName}</h3><p class="text-gray-300 text-lg">${assignedStaff}</p>`;
+                        assignmentsGrid.appendChild(roleEl);
+                    });
+                    const scheduleList = document.getElementById('schedule-list');
+                    scheduleList.innerHTML = '';
+                    this.schedule.forEach(item => {
+                        const li = document.createElement('li');
+                        li.id = `schedule-item-${item.time.replace(/[^A-Z0-9]/ig, '')}`;
+                        li.className = 'p-3 rounded-lg flex items-start space-x-4 transition-all duration-300';
+                        li.innerHTML = `<div class="font-bold text-right w-32 shrink-0 text-gray-400">${item.time}</div><div class="border-l-2 border-gray-700 pl-4"><h4 class="font-semibold text-lg text-white">${item.activity[this.lang]}</h4><p class="text-gray-400">${item.details[this.lang]}</p></div>`;
+                        scheduleList.appendChild(li);
+                    });
+                    this.highlightCurrentSchedule();
+                    this.renderTimeOffForecast();
+                },
+                
+                renderTimeOffForecast() {
+                    const container = document.getElementById('time-off-list');
+                    const card = document.getElementById('time-off-card');
+                    container.innerHTML = '';
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+
+                    const allUpcomingRequests = [];
+                    for (let i = 0; i < 7; i++) {
+                        const day = new Date(today);
+                        day.setDate(today.getDate() + i);
+                        const dateString = day.toISOString().split('T')[0];
+                        const timeOffForDay = this.timeOff.filter(t => t.date === dateString);
+                        if (timeOffForDay.length > 0) {
+                            allUpcomingRequests.push({ day, dateString, timeOffForDay, dayIndex: i });
+                        }
+                    }
+
+                    if (allUpcomingRequests.length === 0) {
+                        card.style.display = 'none';
+                        return;
+                    }
+
+                    card.style.display = 'block';
+
+                    allUpcomingRequests.forEach(({ day, dateString, timeOffForDay, dayIndex }) => {
+                        const dayName = day.toLocaleDateString(this.lang === 'en' ? 'en-US' : 'es-ES', { weekday: 'long' });
+                        const dayEl = document.createElement('div');
+                        dayEl.className = `p-3 rounded-lg ${dayIndex === 0 ? 'bg-gray-700/50' : ''}`;
+                        
+                        let entriesHtml = timeOffForDay.map(entry => {
+                            let timeDetail = entry.fullDay ? 'Full Day' : `${entry.startTime} - ${entry.endTime}`;
+                            if(this.lang === 'es') {
+                                timeDetail = entry.fullDay ? 'Día Completo' : `${entry.startTime} - ${entry.endTime}`;
+                            }
+                            const approvalStatus = entry.approved 
+                                ? `<span class="text-green-400 font-bold">✓ Approved</span>`
+                                : `<span class="text-yellow-400">Pending</span>`;
+
+                            return `<div class="flex justify-between items-center text-sm">
+                                        <span><strong>${entry.name}</strong> (${entry.reason}) - ${timeDetail}</span>
+                                        <span>${approvalStatus}</span>
+                                    </div>`;
+                        }).join('');
+                        
+                        dayEl.innerHTML = `
+                            <h4 class="font-bold text-white">${dayName} <span class="text-gray-400 text-sm font-normal">${dateString}</span></h4>
+                            <div class="pl-2 mt-1 space-y-1">${entriesHtml}</div>
+                        `;
+                        container.appendChild(dayEl);
+                    });
+                },
+
+                highlightCurrentSchedule() {
+                    if(!this.schedule || this.schedule.length === 0) return;
+                    document.querySelectorAll('#schedule-list li').forEach(li => li.classList.remove('bg-gray-800/50'));
+                    document.querySelectorAll('#schedule-list li div.border-l-2').forEach(el => el.classList.remove('border-l-[#EB6841]'));
+
+                    const now = new Date();
+                    const currentTime = now.getHours() * 60 + now.getMinutes();
+                    let currentItem = null;
+                    for (const item of this.schedule) {
+                         const [timeStr] = item.time.split(' - ');
+                         const [hour, minutePart] = timeStr.split(':');
+                         const minute = minutePart.substring(0,2);
+                         const isPM = timeStr.toLowerCase().includes('pm');
+                         let itemHour = parseInt(hour);
+                         if(isPM && itemHour !== 12) itemHour += 12;
+                         if(!isPM && itemHour === 12) itemHour = 0;
+                         const itemTime = itemHour * 60 + parseInt(minute);
+                         if(itemTime <= currentTime) currentItem = item;
+                         else break;
+                    }
+                    if (currentItem) {
+                        const el = document.getElementById(`schedule-item-${currentItem.time.replace(/[^A-Z0-9]/ig, '')}`);
+                        if (el) {
+                           el.classList.add('bg-gray-800/50');
+                           el.querySelector('div.border-l-2').classList.add('border-l-[#EB6841]');
+                        }
+                    }
+                },
+                
+                showHelpModal(section) {
+                    const modal = document.getElementById('help-modal');
+                    const titleEl = document.getElementById('help-modal-title');
+                    const contentEl = document.getElementById('help-modal-content');
+                    const content = this.helpContent[section];
+                    if (content) {
+                        titleEl.textContent = content.title[this.lang];
+                        contentEl.innerHTML = content.details[this.lang].map(p => `<p>${p}</p>`).join('');
+                        modal.classList.remove('hidden');
+                        modal.classList.add('flex');
+                    }
+                },
+                hideHelpModal() { document.getElementById('help-modal').classList.add('hidden'); },
+
+                showRoleTasks(role) {
+                    const modal = document.getElementById('task-modal');
+                    const titleEl = document.getElementById('modal-title');
+                    const contentEl = document.getElementById('modal-content');
+                    const translatedRole = this.translations[role] || role;
+                    titleEl.textContent = this.lang === 'es' ? translatedRole : role;
+                    titleEl.dataset.langEn = role;
+                    titleEl.dataset.langEs = translatedRole;
+                    const tasks = (this.roleTasks && this.roleTasks[role]) ? this.roleTasks[role][this.lang] : ['No tasks defined.'];
+                    contentEl.innerHTML = `<p class="mb-3 font-semibold text-gray-200" data-lang-en="Key Responsibilities:" data-lang-es="Responsabilidades Clave:">${this.lang === 'en' ? 'Key Responsibilities:' : 'Responsabilidades Clave:'}</p><ul class="list-disc list-inside space-y-1">${tasks.map(task => `<li>${task}</li>`).join('')}</ul>`;
+                    modal.classList.remove('hidden');
+                    modal.classList.add('flex');
+                },
+                hideRoleTasks() { document.getElementById('task-modal').classList.add('hidden'); },
+
+                renderCleaningZones() {
+                    const grid = document.getElementById('cleaning-zone-grid');
+                    grid.innerHTML = '';
+                    const weekOfYear = Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24 * 7));
+                    Object.entries(this.cleaningZones).forEach(([zoneId, zone], index) => {
+                        const staffIndex = (weekOfYear + index) % this.staff.length;
+                        const assignedStaff = this.staff.length > 0 ? this.staff[staffIndex] : 'N/A';
+                        const el = document.createElement('div');
+                        el.className = `p-4 rounded-lg border-t-4 ${['border-[#CC333F]', 'border-[#EB6841]', 'border-[#EDC951]', 'border-[#00A0B0]', 'border-gray-500'][index % 5]}`;
+                        el.innerHTML = `
+                            <h3 class="font-bold text-lg text-white">${zone.name[this.lang]}</h3>
+                            <p class="font-semibold text-gray-300 mb-2" data-lang-en="Assigned: ${assignedStaff}" data-lang-es="Asignado: ${assignedStaff}">Assigned: ${assignedStaff}</p>
+                            <div class="space-y-2">
+                                ${zone.details.map((task, taskIndex) => `
+                                    <div>
+                                        <input type="checkbox" id="zone-${index}-task-${taskIndex}" class="task-checkbox" />
+                                        <label for="zone-${index}-task-${taskIndex}" class="text-gray-300 cursor-pointer">${task[this.lang]}</label>
+                                    </div>
+                                `).join('')}
+                            </div>`;
+                        grid.appendChild(el);
+                    });
+                },
+
+                renderForms() {
+                    const container = document.getElementById('forms-container');
+                    container.innerHTML = '';
+                    
+                    const cleaningForm = this.forms.find(f => f.title === 'Cleaning');
+                    if(cleaningForm){
+                        cleaningForm.fields = Object.values(this.cleaningZones).flatMap(zone => zone.details.map(detail => ({ label: `${zone.name.en}: ${detail.en}`, type: 'checkbox' })))
+                    }
+
+                    if (this.forms.length === 0) return;
+                    const tabContainer = document.createElement('div');
+                    tabContainer.className = 'flex border-b border-gray-700 mb-4';
+                    const formsContentContainer = document.createElement('div');
+                    this.forms.forEach((form, index) => {
+                        const formId = `form-${index}`;
+                        const tabBtn = document.createElement('button');
+                        tabBtn.className = `form-tab-btn flex-1 p-3 font-semibold transition ${index === 0 ? 'text-white border-b-2 border-[#EB6841]' : 'text-gray-400'}`;
+                        tabBtn.dataset.form = formId;
+                        tabBtn.textContent = form.title;
+                        tabContainer.appendChild(tabBtn);
+                        const formEl = document.createElement('form');
+                        formEl.id = formId;
+                        formEl.dataset.logType = form.title.replace(/\s+/g, '') + 'Log';
+                        formEl.className = `log-form space-y-4 ${index === 0 ? '' : 'hidden'}`;
+                        const fieldGrid = document.createElement('div');
+                        fieldGrid.className = 'grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2';
+                        fieldGrid.innerHTML = form.fields.map((field, fIndex) => { 
+                            const fieldId = `${formId}-field-${fIndex}`; 
+                            const label = field.label.includes(': ') ? field.label.split(': ') : [null, field.label];
+                            const zoneName = label[0];
+                            const taskName = label[1];
+                            const translatedZone = Object.values(this.cleaningZones).find(z => z.name.en === zoneName);
+                            const translatedTask = translatedZone ? translatedZone.details.find(d => d.en === taskName) : null;
+                            const translatedLabel = (this.lang === 'es' && translatedZone && translatedTask) ? `${translatedZone.name.es}: ${translatedTask.es}` : field.label;
+
+                            if (field.type === 'checkbox') { 
+                                return `<div class="md:col-span-2"><input type="checkbox" id="${fieldId}" name="${field.label}" value="${field.label}" class="task-checkbox"><label for="${fieldId}" class="text-gray-300 cursor-pointer">${translatedLabel}</label></div>`; 
+                            } 
+                            const safeRangeAttr = field.safeRange ? `data-safe-range="${field.safeRange}"` : '';
+                             return `
+                                <div class="flex items-center gap-2">
+                                    <div class="flex-1">
+                                        <label for="${fieldId}" class="block font-medium text-gray-300">${field.label}</label>
+                                        <input type="${field.type}" id="${fieldId}" name="${field.label}" class="form-input ${field.safeRange ? 'temp-input' : ''}" ${safeRangeAttr} ${field.type === 'number' ? 'placeholder="°F"' : ''}>
+                                    </div>
+                                    <div id="gemini-btn-container-${fieldId}" class="w-10 h-10 mt-6"></div>
+                                </div>`; 
+                        }).join('');
+                        formEl.innerHTML = `<h3 class="font-bold text-lg text-white">${form.title}</h3>`;
+                        formEl.appendChild(fieldGrid);
+                        formEl.innerHTML += `<button type="submit" class="btn-primary mt-4" data-lang-en="Submit Log" data-lang-es="Enviar Registro">Submit Log</button>`;
+                        formsContentContainer.appendChild(formEl);
+                    });
+                    container.appendChild(tabContainer);
+                    container.appendChild(formsContentContainer);
+                },
+                
+                handleTempChange(input) {
+                    const value = parseFloat(input.value);
+                    const range = input.dataset.safeRange?.split('-');
+                    const btnContainer = document.getElementById(`gemini-btn-container-${input.id}`);
+                    if (!range || !btnContainer) return;
+                    
+                    const [min, max] = range.map(parseFloat);
+                    
+                    if (!isNaN(value) && (value < min || value > max)) {
+                        input.classList.add('border-red-500', 'ring-red-500');
+                        if (!btnContainer.hasChildNodes()) {
+                            const btn = document.createElement('button');
+                            btn.type = 'button';
+                            btn.className = 'gemini-suggestion-btn bg-yellow-400 text-gray-800 rounded-full w-10 h-10 flex items-center justify-center animate-pulse transition-transform hover:scale-110';
+                            btn.title = 'Suggest Corrective Action';
+                            btn.dataset.equipment = input.name;
+                            btn.dataset.temp = value;
+                            btn.dataset.range = input.dataset.safeRange;
+                            btn.innerHTML = `✨`;
+                            btnContainer.appendChild(btn);
+                        } else {
+                            btnContainer.querySelector('.gemini-suggestion-btn').dataset.temp = value;
+                        }
+                    } else {
+                        input.classList.remove('border-red-500', 'ring-red-500');
+                        btnContainer.innerHTML = '';
+                    }
+                },
+
+                async getCorrectiveAction(button) {
+                    const { equipment, temp, range } = button.dataset;
+                    const [min, max] = range.split('-');
+                    
+                    const modal = document.getElementById('gemini-modal');
+                    const contentEl = document.getElementById('gemini-modal-content');
+                    modal.classList.remove('hidden');
+                    modal.classList.add('flex');
+                    contentEl.innerHTML = `<div class="text-center p-4">Loading suggestions...</div>`;
+
+                    const prompt = `You are a kitchen safety expert. The "${equipment}" is at an unsafe temperature of ${temp}°F. The safe range is ${min}°F to ${max}°F. Provide a numbered list of 3 to 5 immediate, simple corrective actions a kitchen staff member should take. The actions should be clear and concise.`;
+                    
+                    try {
+                        const apiKey = "";
+                        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+                        const payload = {
+                            contents: [{ parts: [{ text: prompt }] }],
+                        };
+
+                        const response = await fetch(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+
+                        if (!response.ok) {
+                           throw new Error(`API Error: ${response.statusText}`);
+                        }
+
+                        const result = await response.json();
+                        const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                        if (text) {
+                            contentEl.innerHTML = text.replace(/\n/g, '<br>');
+                        } else {
+                            contentEl.textContent = "Could not retrieve suggestions at this time.";
+                        }
+                    } catch (error) {
+                         console.error("Gemini API call failed:", error);
+                         contentEl.textContent = "An error occurred while fetching suggestions. Please check the console.";
+                    }
+                },
+
+                hideGeminiModal() { document.getElementById('gemini-modal').classList.add('hidden'); },
+                
+                async handleTranslation(button) {
+                    const sourceEl = button.closest('div').querySelector(`[data-source-class="${button.dataset.sourceClass}"]`) || document.getElementById(button.dataset.source);
+                    const targetEl = button.closest('div').querySelector(`[data-target-class="${button.dataset.targetClass}"]`) || document.getElementById(button.dataset.target);
+                    
+                    if (!sourceEl || !targetEl || !sourceEl.value.trim()) return;
+
+                    button.disabled = true;
+                    button.classList.add('loading');
+
+                    const textToTranslate = sourceEl.value.trim();
+                    const prompt = `Translate the following to ${button.dataset.targetLang}: "${textToTranslate}"`;
+                    
+                    try {
+                        const apiKey = "";
+                        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                        const payload = { contents: [{ parts: [{ text: prompt }] }] };
+                        const response = await fetch(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+
+                        if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
+                        
+                        const result = await response.json();
+                        const translatedText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                        if (translatedText) {
+                            targetEl.value = translatedText.trim().replace(/^"|"$/g, '');
+                        } else {
+                            alert('Translation failed. Please try again.');
+                        }
+                    } catch (error) {
+                        console.error("Gemini Translation failed:", error);
+                        alert('An error occurred during translation.');
+                    } finally {
+                         button.disabled = false;
+                         button.classList.remove('loading');
+                    }
+                },
+
+                setupReportDates() {
+                    const endDateInput = document.getElementById('report-end-date');
+                    const startDateInput = document.getElementById('report-start-date');
+                    const today = new Date();
+                    endDateInput.value = today.toISOString().split('T')[0];
+                    const sevenDaysAgo = new Date();
+                    sevenDaysAgo.setDate(today.getDate() - 6);
+                    startDateInput.value = sevenDaysAgo.toISOString().split('T')[0];
+                },
+
+                renderReports() {
+                    const container = document.getElementById('logs-container');
+                    container.innerHTML = '';
+                    const showMissing = document.getElementById('show-missing-logs-checkbox').checked;
+                    const exportBtn = document.getElementById('export-csv-btn');
+                    const startDate = new Date(document.getElementById('report-start-date').value + 'T00:00:00');
+                    const endDate = new Date(document.getElementById('report-end-date').value + 'T23:59:59');
+                    if (isNaN(startDate) || isNaN(endDate)) return;
+                    let hasMissingLogs = false;
+                    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+                        const dateStr = d.toISOString().split('T')[0];
+                        const logsForDate = this.logs[dateStr] || {};
+                        if (showMissing) {
+                            this.forms.forEach(form => {
+                                const logType = form.title.replace(/\s+/g, '') + 'Log';
+                                if (!logsForDate[logType]) {
+                                    hasMissingLogs = true;
+                                    const missingEl = document.createElement('div');
+                                    missingEl.className = 'p-3 bg-red-900/50 text-red-300 rounded-lg';
+                                    missingEl.textContent = `Missing log for "${form.title}" on ${dateStr}`;
+                                    container.appendChild(missingEl);
+                                }
+                            });
+                        } else {
+                            Object.entries(logsForDate).forEach(([logType, logEntries]) => {
+                                logEntries.forEach(entry => {
+                                    const logEl = document.createElement('a');
+                                    logEl.href = '#';
+                                    logEl.className = 'log-link block p-3 bg-gray-700/50 hover:bg-gray-700 rounded-lg transition';
+                                    const logTitle = logType.replace('Log', '').replace(/([A-Z])/g, ' $1').trim();
+                                    const entryTime = new Date(entry.timestamp).toLocaleTimeString();
+                                    logEl.textContent = `"${logTitle}" log submitted at ${entryTime} on ${dateStr}`;
+                                    logEl.dataset.log = JSON.stringify({ ...entry, title: logTitle, date: dateStr });
+                                    container.appendChild(logEl);
+                                });
+                            });
+                        }
+                    }
+                    if ((!container.hasChildNodes()) && !showMissing) container.innerHTML = `<p class="text-gray-400 p-3" data-lang-en="No logs found for this date range." data-lang-es="No se encontraron registros para este rango de fechas.">No logs found for this date range.</p>`;
+                    exportBtn.classList.toggle('hidden', !hasMissingLogs);
+                    this.renderLogActivityGrid();
+                    this.updateLanguage();
+                },
+
+                renderLogActivityGrid() {
+                    const gridContainer = document.getElementById('log-activity-grid');
+                    gridContainer.innerHTML = '';
+                    const startDate = new Date(document.getElementById('report-start-date').value + 'T00:00:00');
+                    const endDate = new Date(document.getElementById('report-end-date').value + 'T23:59:59');
+                    if (isNaN(startDate) || isNaN(endDate)) return;
+                    const dates = [];
+                    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) dates.push(new Date(d));
+                    const table = document.createElement('table');
+                    table.className = 'w-full text-center border-collapse border-gray-700';
+                    let headerHtml = '<thead><tr class="bg-gray-800"><th class="border border-gray-700"></th>';
+                    dates.forEach(d => headerHtml += `<th class="p-2 border border-gray-700">${d.toLocaleDateString(undefined, {month: 'short', day: 'numeric'})}</th>`);
+                    headerHtml += '</tr></thead>';
+                    let bodyHtml = '<tbody>';
+                    this.forms.forEach(form => {
+                        const logType = form.title.replace(/\s+/g, '') + 'Log';
+                        bodyHtml += `<tr class="border-b border-gray-700"><td class="font-semibold p-2 border border-gray-700 text-left">${form.title}</td>`;
+                        dates.forEach(d => { const dateStr = d.toISOString().split('T')[0]; const hasLog = this.logs[dateStr] && this.logs[dateStr][logType]; bodyHtml += `<td class="p-2 border border-gray-700"><span class="text-2xl font-bold ${hasLog ? 'text-green-500' : 'text-red-500'}">${hasLog ? '●' : '○'}</span></td>`; });
+                        bodyHtml += '</tr>';
+                    });
+                    bodyHtml += '</tbody>';
+                    table.innerHTML = headerHtml + bodyHtml;
+                    gridContainer.appendChild(table);
+                },
+
+                exportMissingLogsCSV() {
+                    const startDate = new Date(document.getElementById('report-start-date').value + 'T00:00:00');
+                    const endDate = new Date(document.getElementById('report-end-date').value + 'T23:59:59');
+                    let csvContent = "data:text/csv;charset=utf-8,Date,Missing Form\n";
+                    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+                        const dateStr = d.toISOString().split('T')[0];
+                        const logsForDate = this.logs[dateStr] || {};
+                        this.forms.forEach(form => {
+                            const logType = form.title.replace(/\s+/g, '') + 'Log';
+                            if (!logsForDate[logType]) csvContent += `${dateStr},"${form.title}"\n`;
+                        });
+                    }
+                    const encodedUri = encodeURI(csvContent);
+                    const link = document.createElement("a");
+                    link.setAttribute("href", encodedUri);
+                    link.setAttribute("download", "missing_logs.csv");
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                },
+
+                showPrintableLog(log) {
+                    document.getElementById('printable-log-title').textContent = log.title;
+                    document.getElementById('printable-log-info').textContent = `Submitted on ${log.date} at ${new Date(log.timestamp).toLocaleTimeString()}`;
+                    document.getElementById('printable-log-data').innerHTML = Object.entries(log.data).map(([key, value]) => `<div class="py-2 border-b border-gray-200"><strong class="text-gray-800">${key}:</strong><span class="text-gray-600"> ${Array.isArray(value) ? value.join(', ') : value}</span></div>`).join('');
+                    document.getElementById('printable-log-modal').classList.remove('hidden');
+                    document.getElementById('printable-log-modal').classList.add('flex');
+                },
+                hidePrintableLog() { document.getElementById('printable-log-modal').classList.add('hidden'); },
+                printLog() { window.print(); },
+                
+                switchView(button) {
+                    const viewId = button.dataset.view;
+                    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+                    document.getElementById(viewId).classList.add('active');
+                    document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+                    button.classList.add('active');
+                    if (viewId === 'reports-view') this.loadLogsForDateRange();
+                },
+
+                switchForm(button) {
+                    const formId = button.dataset.form;
+                    document.querySelectorAll('.log-form').forEach(f => f.classList.add('hidden'));
+                    document.getElementById(formId).classList.remove('hidden');
+                    document.querySelectorAll('.form-tab-btn').forEach(b => { b.classList.remove('text-white', 'border-b-2', 'border-[#EB6841]', 'text-gray-400'); if (b === button) b.classList.add('text-white', 'border-b-2', 'border-[#EB6841]'); else b.classList.add('text-gray-400'); });
+                },
+
+                async handleFormSubmit(event) {
+                    event.preventDefault();
+                    const form = event.target;
+                    const logType = form.dataset.logType;
+                    const formData = new FormData(form);
+                    const data = {};
+                    let hasData = false;
+                    const isCheckboxForm = Array.from(formData.keys()).some(key => form.querySelector(`[name="${key}"]`) && form.querySelector(`[name="${key}"]`).type === 'checkbox');
+                    if (isCheckboxForm) { data.Completed = []; formData.forEach((value, key) => { data.Completed.push(key); hasData = true; });
+                    } else { for (let [key, value] of formData.entries()) { if(value) { data[key] = value; hasData = true; } } }
+                    if (!hasData) { alert(this.lang === 'en' ? 'Form is empty. Please enter data before submitting.' : 'El formulario está vacío. Por favor, ingrese datos antes de enviar.'); return; }
+                    await this.saveLog(logType, { timestamp: new Date().toISOString(), data: data });
+                    alert(this.lang === 'en' ? 'Log submitted successfully!' : '¡Registro enviado con éxito!');
+                    form.reset();
+                    document.querySelectorAll('.gemini-suggestion-btn').forEach(btn => btn.parentElement.innerHTML = '');
+                    if(document.getElementById('reports-view').classList.contains('active')) this.loadLogsForDateRange();
+                },
+                
+                getTodayDateString() { return new Date().toISOString().split('T')[0]; },
+                
+                toggleLanguage() {
+                    this.lang = this.lang === 'en' ? 'es' : 'en';
+                    document.getElementById('lang-toggle-text').textContent = this.lang === 'en' ? 'Español' : 'English';
+                    this.renderAllComponents();
+                },
+                updateLanguage() {
+                    document.querySelectorAll('[data-lang-en]').forEach(el => {
+                        const key = this.lang === 'es' ? 'data-lang-es' : 'data-lang-en';
+                        if (el.hasAttribute(key)) el.textContent = el.getAttribute(key);
+                    });
+                },
+                showEditModal() { this.renderEditModalContent(); document.getElementById('edit-modal').classList.remove('hidden'); document.getElementById('edit-modal').classList.add('flex'); },
+                hideEditModal() { document.getElementById('edit-modal').classList.add('hidden'); document.getElementById('edit-modal').classList.remove('flex'); },
+                renderEditModalContent() {
+                    const staffList = document.getElementById('staff-list'); staffList.innerHTML = ''; this.staff.forEach((name, index) => { const li = document.createElement('li'); li.className = 'flex items-center justify-between bg-gray-700 p-2 rounded'; li.innerHTML = `<span>${name}</span><button class="remove-staff-btn text-xl font-bold text-red-500 hover:text-red-400" data-index="${index}">&times;</button>`; staffList.appendChild(li); });
+                    document.querySelectorAll('.remove-staff-btn').forEach(btn => btn.onclick = (e) => this.removeStaff(parseInt(e.currentTarget.dataset.index)));
+                    const roleList = document.getElementById('role-list'); roleList.innerHTML = ''; this.roles.forEach((name, index) => { const li = document.createElement('li'); li.className = 'flex items-center justify-between bg-gray-700 p-2 rounded'; li.innerHTML = `<span>${name}</span><button class="remove-role-btn text-xl font-bold text-red-500 hover:text-red-400" data-index="${index}">&times;</button>`; roleList.appendChild(li); });
+                    document.querySelectorAll('.remove-role-btn').forEach(btn => btn.onclick = (e) => this.removeRole(parseInt(e.currentTarget.dataset.index)));
+                    const assignmentsContainer = document.getElementById('daily-assignments-container'); assignmentsContainer.innerHTML = ''; const today = this.getTodayDateString(); const currentAssignments = this.assignments[today] || {}; const dayOfYear = Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 0)) / 1000 / 60 / 60 / 24);
+                    this.roles.forEach((role, index) => { let selectedStaff = currentAssignments[role]; if (!selectedStaff) { const staffIndex = this.staff.length > 0 ? (dayOfYear + index) % this.staff.length : -1; selectedStaff = staffIndex !== -1 ? this.staff[staffIndex] : ''; } const staffOptions = this.staff.map(staffName => `<option value="${staffName}" ${staffName === selectedStaff ? 'selected' : ''}>${staffName}</option>`).join(''); const assignmentEl = document.createElement('div'); assignmentEl.className = 'grid grid-cols-2 gap-4 items-center'; assignmentEl.innerHTML = `<label for="assign-${index}" class="font-medium text-gray-300">${role}</label><select id="assign-${index}" data-role="${role}" class="form-input"><option value="Unassigned" data-lang-en="Unassigned" data-lang-es="Sin asignar">Unassigned</option>${staffOptions}</select>`; assignmentsContainer.appendChild(assignmentEl); });
+                },
+                showScheduleEditModal() { this.renderScheduleEditModal(); document.getElementById('schedule-edit-modal').classList.remove('hidden'); document.getElementById('schedule-edit-modal').classList.add('flex'); },
+                hideScheduleEditModal() { document.getElementById('schedule-edit-modal').classList.add('hidden'); document.getElementById('schedule-edit-modal').classList.remove('flex'); },
+                renderScheduleEditModal(scheduleData = this.schedule) { const container = document.getElementById('schedule-items-editor'); container.innerHTML = scheduleData.map((item, index) => `<div class="grid grid-cols-1 md:grid-cols-5 gap-2 items-center"><input type="text" value="${item.time}" class="form-input schedule-time-input"><input type="text" value="${item.activity.en}" class="form-input schedule-activity-en-input"><input type="text" value="${item.details.en}" class="form-input schedule-details-en-input"><div class="flex items-center gap-2"><input type="text" value="${item.activity.es}" class="form-input schedule-activity-es-input"><button type="button" class="translate-btn p-2 bg-yellow-400 text-gray-800 rounded-full" data-source-class="schedule-activity-en-input" data-target-class="schedule-activity-es-input" data-target-lang="Spanish" title="Translate">✨</button></div><div class="flex items-center gap-2"><input type="text" value="${item.details.es}" class="form-input schedule-details-es-input"><button type="button" class="translate-btn p-2 bg-yellow-400 text-gray-800 rounded-full" data-source-class="schedule-details-en-input" data-target-class="schedule-details-es-input" data-target-lang="Spanish" title="Translate">✨</button><button class="remove-schedule-item-btn bg-red-500 text-white p-2 rounded-lg hover:bg-red-600" data-index="${index}">X</button></div></div>`).join(''); container.querySelectorAll('.remove-schedule-item-btn').forEach(btn => btn.onclick = (e) => { const tempSchedule = this.getTemporaryScheduleFromEditor(); tempSchedule.splice(parseInt(e.currentTarget.dataset.index, 10), 1); this.renderScheduleEditModal(tempSchedule); }); },
+                addScheduleItem() { const timeInput = document.getElementById('new-schedule-time'), activityEnInput = document.getElementById('new-schedule-activity'), detailsEnInput = document.getElementById('new-schedule-details'), activityEsInput = document.getElementById('new-schedule-activity-es'), detailsEsInput = document.getElementById('new-schedule-details-es'); if (timeInput.value.trim() && activityEnInput.value.trim()) { const tempSchedule = this.getTemporaryScheduleFromEditor(); tempSchedule.push({ time: timeInput.value.trim(), activity: {en: activityEnInput.value.trim(), es: activityEsInput.value.trim()}, details: {en: detailsEnInput.value.trim(), es: detailsEsInput.value.trim()} }); this.renderScheduleEditModal(tempSchedule); [timeInput, activityEnInput, detailsEnInput, activityEsInput, detailsEsInput].forEach(i => i.value = ''); } },
+                getTemporaryScheduleFromEditor(){ return Array.from(document.querySelectorAll('#schedule-items-editor .grid')).map(el => ({ time: el.querySelector('.schedule-time-input').value, activity: {en: el.querySelector('.schedule-activity-en-input').value, es: el.querySelector('.schedule-activity-es-input').value}, details: {en: el.querySelector('.schedule-details-en-input').value, es: el.querySelector('.schedule-details-es-input').value} })); },
+                showFormsEditModal() { this.renderFormsEditModal(); document.getElementById('forms-edit-modal').classList.remove('hidden'); document.getElementById('forms-edit-modal').classList.add('flex'); },
+                hideFormsEditModal() { document.getElementById('forms-edit-modal').classList.add('hidden'); document.getElementById('forms-edit-modal').classList.remove('flex'); },
+                renderFormsEditModal(tempForms = JSON.parse(JSON.stringify(this.forms))) { const container = document.getElementById('forms-editor-container'); container.innerHTML = tempForms.map((form, formIndex) => `<div class="p-4 border border-gray-700 rounded-lg space-y-3"><div class="flex items-center gap-2"><label class="font-bold text-gray-300">Form Title:</label><input type="text" value="${form.title}" class="form-input form-title-input"><button class="remove-form-btn bg-red-500 text-white p-2 rounded-lg hover:bg-red-600" data-form-index="${formIndex}">Remove Form</button></div><div class="space-y-2 form-fields-container">${form.fields.map((field, fieldIndex) => `<div class="flex items-center gap-2"><input type="text" value="${field.label}" class="form-input form-field-label-input"><select class="form-input w-32 form-field-type-input"><option value="text" ${field.type === 'text' ? 'selected' : ''}>Text</option><option value="number" ${field.type === 'number' ? 'selected' : ''}>Number</option><option value="checkbox" ${field.type === 'checkbox' ? 'selected' : ''}>Checkbox</option></select><button class="remove-field-btn text-xl font-bold text-red-500 hover:text-red-400" data-form-index="${formIndex}" data-field-index="${fieldIndex}">&times;</button></div>`).join('')}</div><button class="add-field-btn btn-secondary text-sm !w-auto" data-form-index="${formIndex}">+ Add Field</button></div>`).join(''); this.setupFormsEditModalListeners(); },
+                setupFormsEditModalListeners() { document.querySelectorAll('.remove-form-btn').forEach(btn => btn.onclick = (e) => { const tempForms = this.getTemporaryFormsFromEditor(); tempForms.splice(parseInt(e.currentTarget.dataset.formIndex, 10), 1); this.renderFormsEditModal(tempForms); }); document.querySelectorAll('.remove-field-btn').forEach(btn => btn.onclick = (e) => { const tempForms = this.getTemporaryFormsFromEditor(); const { formIndex, fieldIndex } = e.currentTarget.dataset; tempForms[formIndex].fields.splice(parseInt(fieldIndex, 10), 1); this.renderFormsEditModal(tempForms); }); document.querySelectorAll('.add-field-btn').forEach(btn => btn.onclick = (e) => { const tempForms = this.getTemporaryFormsFromEditor(); tempForms[parseInt(e.currentTarget.dataset.formIndex, 10)].fields.push({ label: 'New Field', type: 'text' }); this.renderFormsEditModal(tempForms); }); },
+                getTemporaryFormsFromEditor() { return Array.from(document.querySelectorAll('#forms-editor-container > div')).map(formEl => ({ title: formEl.querySelector('.form-title-input').value, fields: Array.from(formEl.querySelectorAll('.form-fields-container > div')).map(fieldEl => ({ label: fieldEl.querySelector('.form-field-label-input').value, type: fieldEl.querySelector('.form-field-type-input').value })) })); },
+                addForm(title) { const tempForms = this.getTemporaryFormsFromEditor(); tempForms.push({ title: title, fields: [{label: 'New Field', type: 'text'}] }); this.renderFormsEditModal(tempForms); },
+                showCleaningEditModal() { this.renderCleaningEditModal(); document.getElementById('cleaning-edit-modal').classList.remove('hidden'); document.getElementById('cleaning-edit-modal').classList.add('flex'); },
+                hideCleaningEditModal() { document.getElementById('cleaning-edit-modal').classList.add('hidden'); },
+                renderCleaningEditModal(tempZones = JSON.parse(JSON.stringify(this.cleaningZones))) {
+                    const container = document.getElementById('cleaning-zones-editor');
+                    container.innerHTML = Object.entries(tempZones).map(([zoneId, zone]) => `
+                        <div class="p-4 border border-gray-700 rounded-lg space-y-3 bg-gray-800/50" data-zone-id="${zoneId}">
+                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 items-center">
+                                <input type="text" value="${zone.name.en}" class="form-input zone-name-en" placeholder="Zone Name (English)" data-source-class="zone-name-en">
+                                <div class="flex items-center gap-2">
+                                   <input type="text" value="${zone.name.es}" class="form-input zone-name-es" placeholder="Zone Name (Spanish)" data-target-class="zone-name-es">
+                                   <button type="button" class="translate-btn p-2 bg-yellow-400 text-gray-800 rounded-full" data-source-class="zone-name-en" data-target-class="zone-name-es" data-target-lang="Spanish" title="Translate to Spanish">✨</button>
+                                </div>
+                            </div>
+                            <h4 class="font-semibold mt-2 text-gray-300">Tasks:</h4>
+                            <div class="space-y-2 cleaning-tasks-container">
+                                ${zone.details.map((task, taskIndex) => `
+                                    <div class="flex items-center gap-2">
+                                        <input type="text" value="${task.en}" class="form-input task-name-en flex-1" placeholder="Task (English)" data-source-class="task-name-en">
+                                         <div class="flex items-center gap-2 flex-1">
+                                            <input type="text" value="${task.es}" class="form-input task-name-es" placeholder="Task (Spanish)" data-target-class="task-name-es">
+                                            <button type="button" class="translate-btn p-2 bg-yellow-400 text-gray-800 rounded-full" data-source-class="task-name-en" data-target-class="task-name-es" data-target-lang="Spanish" title="Translate to Spanish">✨</button>
+                                        </div>
+                                        <button class="remove-task-btn text-xl font-bold text-red-500 hover:text-red-400" data-task-index="${taskIndex}">&times;</button>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            <button class="add-task-btn btn-secondary text-sm !w-auto" data-zone-id="${zoneId}">+ Add Task</button>
+                        </div>
+                    `).join('');
+                    this.setupCleaningEditModalListeners();
+                },
+                setupCleaningEditModalListeners() {
+                    document.querySelectorAll('.add-task-btn').forEach(btn => btn.onclick = (e) => {
+                        const tempZones = this.getTemporaryCleaningZonesFromEditor();
+                        tempZones[e.currentTarget.dataset.zoneId].details.push({ en: 'New Task', es: 'Nueva Tarea' });
+                        this.renderCleaningEditModal(tempZones);
+                    });
+                     document.querySelectorAll('.remove-task-btn').forEach(btn => btn.onclick = (e) => {
+                        const tempZones = this.getTemporaryCleaningZonesFromEditor();
+                        const zoneId = e.currentTarget.closest('[data-zone-id]').dataset.zoneId;
+                        tempZones[zoneId].details.splice(parseInt(e.currentTarget.dataset.taskIndex, 10), 1);
+                        this.renderCleaningEditModal(tempZones);
+                    });
+                },
+                getTemporaryCleaningZonesFromEditor() {
+                    const newZones = {};
+                    document.querySelectorAll('#cleaning-zones-editor > div').forEach(zoneEl => {
+                        const zoneId = zoneEl.dataset.zoneId;
+                        const newZone = {
+                            name: {
+                                en: zoneEl.querySelector('.zone-name-en').value,
+                                es: zoneEl.querySelector('.zone-name-es').value
+                            },
+                            details: []
+                        };
+                        zoneEl.querySelectorAll('.cleaning-tasks-container > div').forEach(taskEl => {
+                            newZone.details.push({
+                                en: taskEl.querySelector('.task-name-en').value,
+                                es: taskEl.querySelector('.task-name-es').value
+                            });
+                        });
+                        newZones[zoneId] = newZone;
+                    });
+                    return newZones;
+                },
+                renderTrainingModules() {
+                    const container = document.getElementById('training-modules-container');
+                    container.innerHTML = '';
+                    this.trainingModules.forEach(module => {
+                        const el = document.createElement('div');
+                        el.className = 'flex justify-between items-center bg-gray-700/50 p-4 rounded-lg';
+                        el.innerHTML = `
+                            <h3 class="text-lg font-bold text-white">${module.title[this.lang]}</h3>
+                            <div class="flex gap-2">
+                                <button class="training-btn btn-secondary !w-auto text-sm" data-module-id="${module.id}" data-type="manual">Manual</button>
+                                <button class="training-btn btn-secondary !w-auto text-sm" data-module-id="${module.id}" data-type="facts">Facts</button>
+                                <button class="training-btn btn-primary !w-auto text-sm" data-module-id="${module.id}" data-type="quiz">Quiz</button>
+                            </div>
+                        `;
+                        container.appendChild(el);
+                    });
+
+                    container.querySelectorAll('.training-btn').forEach(btn => {
+                        btn.addEventListener('click', (e) => this.showTrainingContent(e.currentTarget.dataset.moduleId, e.currentTarget.dataset.type));
+                    });
+                },
+
+                showTrainingContent(moduleId, type) {
+                    const module = this.trainingModules.find(m => m.id === moduleId);
+                    if (!module) return;
+
+                    const modal = document.getElementById('training-content-modal');
+                    const titleEl = document.getElementById('training-modal-title');
+                    const contentEl = document.getElementById('training-modal-content');
+                    
+                    titleEl.textContent = module.title[this.lang];
+                    
+                    if (type === 'manual') {
+                        contentEl.innerHTML = module.manual[this.lang];
+                    } else if (type === 'facts') {
+                        contentEl.innerHTML = `<ul class="list-disc list-inside space-y-2">${module.facts[this.lang].map(f => `<li>${f}</li>`).join('')}</ul>`;
+                    } else if (type === 'quiz') {
+                        const staffOptions = this.staff.map(s => `<option value="${s}">${s}</option>`).join('');
+                        let questionsHtml = module.quiz.questions.map((q, index) => {
+                            let optionsHtml = q.options.map(opt => `
+                                <label class="block bg-gray-700 p-3 rounded-lg hover:bg-gray-600 cursor-pointer">
+                                    <input type="radio" name="question-${index}" value="${opt.en}" class="mr-2">
+                                    ${opt[this.lang]}
+                                </label>`).join('');
+                            return `<div class="mb-4">
+                                        <p class="font-bold mb-2">${index + 1}. ${q.question[this.lang]}</p>
+                                        <div class="space-y-2">${optionsHtml}</div>
+                                    </div>`;
+                        }).join('');
+
+                        contentEl.innerHTML = `
+                            <form id="quiz-form" data-module-id="${moduleId}">
+                                <div class="mb-4">
+                                    <label for="quiz-taker" class="block font-medium mb-1">Select Your Name:</label>
+                                    <select id="quiz-taker" class="form-input" required>
+                                        <option value="">-- Please Select --</option>
+                                        ${staffOptions}
+                                    </select>
+                                </div>
+                                ${questionsHtml}
+                                <button type="submit" class="btn-primary mt-4">Submit Quiz</button>
+                            </form>
+                        `;
+                        contentEl.querySelector('#quiz-form').addEventListener('submit', (e) => this.submitQuiz(e));
+                    }
+
+                    modal.classList.remove('hidden');
+                    modal.classList.add('flex');
+                },
+
+                hideTrainingModal() {
+                    document.getElementById('training-content-modal').classList.add('hidden');
+                },
+                
+                async submitQuiz(event) {
+                    event.preventDefault();
+                    const form = event.target;
+                    const moduleId = form.dataset.moduleId;
+                    const module = this.trainingModules.find(m => m.id === moduleId);
+                    const taker = form.querySelector('#quiz-taker').value;
+
+                    if (!taker) {
+                        alert("Please select your name before submitting.");
+                        return;
+                    }
+
+                    let score = 0;
+                    const userAnswers = [];
+                    const formData = new FormData(form);
+
+                    module.quiz.questions.forEach((q, index) => {
+                        const answer = formData.get(`question-${index}`);
+                        userAnswers.push(answer || "No Answer");
+                        if (answer === q.answer.en) {
+                            score++;
+                        }
+                    });
+
+                    const percentage = score / module.quiz.questions.length;
+                    const pass = percentage >= module.quiz.passingScore;
+                    
+                    const result = {
+                        date: new Date().toISOString(),
+                        topic: module.title.en,
+                        name: taker,
+                        status: pass ? 'Pass' : 'Fail',
+                        score: `${score}/${module.quiz.questions.length}`,
+                        answers: userAnswers.join(', ')
+                    };
+                    
+                    await this.saveQuizResult(result);
+
+                    alert(`You ${pass ? 'Passed' : 'Failed'}! Your score: ${score} out of ${module.quiz.questions.length}`);
+                    this.hideTrainingModal();
+                },
+
+                showTimeOffEditModal() {
+                    document.getElementById('time-off-edit-modal').classList.remove('hidden');
+                    document.getElementById('time-off-edit-modal').classList.add('flex');
+                    this.renderTimeOffEditModal();
+                },
+
+                hideTimeOffEditModal() {
+                    document.getElementById('time-off-edit-modal').classList.add('hidden');
+                },
+                
+                renderTimeOffEditModal() {
+                    const nameDropdown = document.getElementById('time-off-name');
+                    nameDropdown.innerHTML = this.staff.map(s => `<option value="${s}">${s}</option>`).join('');
+                    this.resetTimeOffForm();
+
+                    const listContainer = document.getElementById('time-off-requests-list');
+                    listContainer.innerHTML = '';
+                    const upcomingRequests = this.timeOff
+                        .filter(t => new Date(t.date) >= new Date(new Date().toISOString().split('T')[0]))
+                        .sort((a,b) => new Date(a.date) - new Date(b.date));
+
+                    if(upcomingRequests.length === 0) {
+                        listContainer.innerHTML = `<p class="text-gray-400">No upcoming time off requests.</p>`;
+                        return;
+                    }
+                    
+                    upcomingRequests.forEach(req => {
+                        const el = document.createElement('div');
+                        el.className = 'flex justify-between items-center bg-gray-700/50 p-2 rounded-lg';
+                        const timeDetail = req.fullDay ? 'Full Day' : `${req.startTime} - ${req.endTime}`;
+                        
+                        el.innerHTML = `
+                            <div>
+                                <p><strong>${req.name}</strong> - ${req.date} (${timeDetail})</p>
+                                <p class="text-sm text-gray-400">${req.reason} - 
+                                    <label class="cursor-pointer">
+                                        <input type="checkbox" class="time-off-approve" data-id="${req.id}" ${req.approved ? 'checked' : ''}>
+                                        Approved
+                                    </label>
+                                </p>
+                            </div>
+                            <div>
+                                <button class="edit-time-off-item-btn p-1 hover:bg-gray-600 rounded" data-id="${req.id}">✎</button>
+                                <button class="delete-time-off-item-btn p-1 hover:bg-gray-600 rounded text-red-400" data-id="${req.id}">🗑</button>
+                            </div>
+                        `;
+                        listContainer.appendChild(el);
+                    });
+
+                    listContainer.querySelectorAll('.edit-time-off-item-btn').forEach(btn => btn.addEventListener('click', e => this.editTimeOffRequest(e.currentTarget.dataset.id)));
+                    listContainer.querySelectorAll('.delete-time-off-item-btn').forEach(btn => btn.addEventListener('click', e => this.deleteTimeOffRequest(e.currentTarget.dataset.id)));
+                    listContainer.querySelectorAll('.time-off-approve').forEach(box => box.addEventListener('change', e => this.toggleTimeOffApproval(e.currentTarget.dataset.id, e.currentTarget.checked)));
+                },
+                
+                resetTimeOffForm() {
+                    const form = document.getElementById('add-time-off-form');
+                    form.reset();
+                    document.getElementById('time-off-id').value = '';
+                    document.getElementById('time-off-range-container').style.display = 'grid';
+                    document.getElementById('time-off-submit-btn').textContent = 'Add Request';
+                    document.getElementById('time-off-cancel-btn').classList.add('hidden');
+                },
+
+                async handleTimeOffFormSubmit(event) {
+                    event.preventDefault();
+                    const form = event.target;
+                    const id = document.getElementById('time-off-id').value;
+                    const isFullDay = document.getElementById('time-off-full-day').checked;
+
+                    const request = {
+                        id: id || crypto.randomUUID(),
+                        name: document.getElementById('time-off-name').value,
+                        date: document.getElementById('time-off-date').value,
+                        reason: document.getElementById('time-off-reason').value,
+                        fullDay: isFullDay,
+                        startTime: isFullDay ? '' : document.getElementById('time-off-start').value,
+                        endTime: isFullDay ? '' : document.getElementById('time-off-end').value,
+                        approved: id ? (this.timeOff.find(t=>t.id === id)?.approved || false) : false,
+                    };
+
+                    if (!request.date || !request.name) {
+                        alert('Please fill out the name and date.');
+                        return;
+                    }
+                    
+                    const existingIndex = this.timeOff.findIndex(t => t.id === id);
+                    if(existingIndex > -1) {
+                        this.timeOff[existingIndex] = request;
+                    } else {
+                        this.timeOff.push(request);
+                    }
+
+                    await this.saveConfigToFirestore(this.getCurrentConfigData());
+                    this.resetTimeOffForm();
+                },
+
+                editTimeOffRequest(id) {
+                    const request = this.timeOff.find(t => t.id === id);
+                    if(!request) return;
+
+                    document.getElementById('time-off-id').value = request.id;
+                    document.getElementById('time-off-name').value = request.name;
+                    document.getElementById('time-off-date').value = request.date;
+                    document.getElementById('time-off-reason').value = request.reason;
+                    document.getElementById('time-off-full-day').checked = request.fullDay;
+                    document.getElementById('time-off-start').value = request.startTime;
+                    document.getElementById('time-off-end').value = request.endTime;
+                    
+                    document.getElementById('time-off-range-container').style.display = request.fullDay ? 'none' : 'grid';
+                    document.getElementById('time-off-submit-btn').textContent = 'Update Request';
+                    document.getElementById('time-off-cancel-btn').classList.remove('hidden');
+                },
+
+                async deleteTimeOffRequest(id) {
+                    if(confirm('Are you sure you want to delete this time off request?')) {
+                        this.timeOff = this.timeOff.filter(t => t.id !== id);
+                        await this.saveConfigToFirestore(this.getCurrentConfigData());
+                    }
+                },
+
+                async toggleTimeOffApproval(id, isApproved) {
+                    const request = this.timeOff.find(t => t.id === id);
+                    if(request) {
+                        request.approved = isApproved;
+                        await this.saveConfigToFirestore(this.getCurrentConfigData());
+                    }
+                }
+            };
+            
+            App.init();
+        });
+    </script>
+</body>
+</html>
+
